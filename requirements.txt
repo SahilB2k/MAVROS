@@ -1,0 +1,18 @@
+# VRPTW Solver Requirements
+
+# Core dependencies (minimal for memory efficiency)
+# No heavy dependencies - pure Python implementation
+
+# Optional: For baseline comparison
+ortools>=9.0.0
+
+# Optional: For visualization
+matplotlib>=3.5.0
+numpy>=1.21.0
+
+
+
+
+
+
+
