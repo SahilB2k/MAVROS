@@ -47,7 +47,10 @@ def selective_mds(solution: Solution,
         Same solution object (modified in place)
     """
     # Pre-allocate temp buffers (reused across all iterations)
-    temp_arrival_buffer = [0.0] * MAX_ROUTE_SIZE
+    # Use max route size in solution, but cap at reasonable limit for memory efficiency
+    max_route_size = max((len(route.customer_ids) for route in solution.routes), default=0)
+    buffer_size = max(MAX_ROUTE_SIZE, max_route_size + 10)  # Add small margin
+    temp_arrival_buffer = [0.0] * buffer_size
     
     iteration = 0
     no_improvement_count = 0
