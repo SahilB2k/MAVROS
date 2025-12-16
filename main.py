@@ -58,6 +58,11 @@ def run_experiment(instance_file: str, max_customers: int = None, random_seed: i
         depot=depot,
         customers=customers,
         vehicle_capacity=vehicle_capacity,
+        # Higher-quality default parameters (still fast for ~100 customers)
+        candidate_ratio=0.7,        # check 70% of candidates instead of 30%
+        min_candidates=5,           # at least 5 candidates each step
+        max_mds_iterations=120,     # more MDS iterations for better refinement
+        top_n_critical=10,          # improve more routes per iteration
         random_seed=random_seed
     )
     

@@ -50,10 +50,42 @@ class Route:
         self.depot: Customer = depot
         self.customers_lookup: Dict[int, Customer] = customers_lookup  # Reference to global dict
         self.vehicle_capacity: int = vehicle_capacity
+
+    def recompute_schedule(self):
+        """
+        Recompute arrival times after route modification.
+        Compatible with current Route structure.
+        """
+
+        self.arrival_times.clear()
+
+        time = self.departure_time
+        prev = self.depot
+
+        for cust_id in self.customer_ids:
+            customer = self.customers_lookup[cust_id]
+
+            travel = distance(prev, customer)
+            arrival = max(time + travel, customer.ready_time)
+
+            self.arrival_times.append(arrival)
+
+            # departure = arrival + service_time
+            time = arrival + customer.service_time
+            prev = customer
+
     
     def get_customer(self, idx: int) -> Customer:
         """Get customer object by index without storing duplicates"""
         return self.customers_lookup[self.customer_ids[idx]]
+
+    def get_customer_by_id(self, customer_id):
+        """
+        Return Customer object for given customer_id
+        Route already holds reference to customers dict
+        """
+        return self.customers_lookup[customer_id]
+
     
     def insert_inplace(self, customer_id: int, position: int) -> bool:
         """
@@ -140,39 +172,76 @@ class Route:
     
     def calculate_cost_inplace(self) -> float:
         """
-        Update self.total_cost and return it
-        Cost = travel time + waiting time
+        Update self.total_cost and arrival_times and return cost.
+        
+        Cost = travel distance + waiting time.
+        Waiting is computed against the *raw* arrival
+        (before applying max(raw_arrival, ready_time)).
         """
-        if len(self.customer_ids) == 0:
+        if not self.customer_ids:
             self.total_cost = 0.0
+            self.arrival_times = []
             return 0.0
-        
+
         total_cost = 0.0
-        
-        # Travel from depot to first customer
-        if len(self.customer_ids) > 0:
-            first_customer = self.get_customer(0)
-            total_cost += distance(self.depot, first_customer)
-        
-        # Travel between customers
-        for i in range(len(self.customer_ids) - 1):
-            customer1 = self.get_customer(i)
-            customer2 = self.get_customer(i + 1)
-            total_cost += distance(customer1, customer2)
-        
-        # Travel from last customer back to depot
-        if len(self.customer_ids) > 0:
-            last_customer = self.get_customer(len(self.customer_ids) - 1)
-            total_cost += distance(last_customer, self.depot)
-        
-        # Add waiting time
-        for i, arrival in enumerate(self.arrival_times):
-            customer = self.get_customer(i)
-            waiting_time = max(0.0, customer.ready_time - arrival)
-            total_cost += waiting_time
-        
+        n = len(self.customer_ids)
+        if len(self.arrival_times) != n:
+            self.arrival_times = [0.0] * n
+
+        time = self.departure_time
+        prev = self.depot
+
+        for i, cust_id in enumerate(self.customer_ids):
+            customer = self.customers_lookup[cust_id]
+
+            travel = distance(prev, customer)
+            raw_arrival = time + travel
+            wait = max(0.0, customer.ready_time - raw_arrival)
+            arrival = raw_arrival + wait
+
+            # store final arrival (after waiting) for feasibility / slack logic
+            self.arrival_times[i] = arrival
+
+            # distance + waiting contribute to cost
+            total_cost += travel + wait
+
+            # next leg starts after service
+            time = arrival + customer.service_time
+            prev = customer
+
+        # Return to depot
+        last_customer = self.customers_lookup[self.customer_ids[-1]]
+        total_cost += distance(last_customer, self.depot)
+
         self.total_cost = total_cost
         return total_cost
+    
+    def get_total_distance(self) -> float:
+        """
+        Return total travel distance for current route (including depot->first
+        and last->depot), ignoring waiting time.
+        Does not modify route state.
+        """
+        if not self.customer_ids:
+            return 0.0
+
+        total_dist = 0.0
+
+        # depot -> first
+        first = self.customers_lookup[self.customer_ids[0]]
+        total_dist += distance(self.depot, first)
+
+        # between customers
+        for i in range(len(self.customer_ids) - 1):
+            c1 = self.customers_lookup[self.customer_ids[i]]
+            c2 = self.customers_lookup[self.customer_ids[i + 1]]
+            total_dist += distance(c1, c2)
+
+        # last -> depot
+        last = self.customers_lookup[self.customer_ids[-1]]
+        total_dist += distance(last, self.depot)
+
+        return total_dist
     
     def swap_inplace(self, i: int, j: int) -> bool:
         """
@@ -267,13 +336,61 @@ class Route:
         return True
     
     def get_waiting_time(self) -> float:
-        """Calculate total waiting time in route"""
-        total_waiting = 0.0
-        for i, arrival in enumerate(self.arrival_times):
-            customer = self.get_customer(i)
-            waiting = max(0.0, customer.ready_time - arrival)
-            total_waiting += waiting
-        return total_waiting
+        """
+        Robust waiting time calculation.
+        Uses the same raw-arrival-based definition as in calculate_cost_inplace.
+        Automatically repairs schedule/cost if needed.
+        """
+        if not self.customer_ids:
+            return 0.0
+
+        # Ensure schedule and cost are consistent
+        if len(self.arrival_times) != len(self.customer_ids):
+            self.calculate_cost_inplace()
+
+        waiting = 0.0
+
+        time = self.departure_time
+        prev = self.depot
+        for cust_id in self.customer_ids:
+            customer = self.customers_lookup[cust_id]
+            travel = distance(prev, customer)
+            raw_arrival = time + travel
+            wait = max(0.0, customer.ready_time - raw_arrival)
+            waiting += wait
+
+            arrival = raw_arrival + wait
+            time = arrival + customer.service_time
+            prev = customer
+
+        return waiting
+    
+    def get_waiting_contributions(self) -> List[tuple[int, float]]:
+        """
+        Return per-customer waiting contributions (raw-arrival based).
+        """
+        contributions: List[tuple[int, float]] = []
+        if not self.customer_ids:
+            return contributions
+
+        # Ensure schedule/cost are consistent
+        if len(self.arrival_times) != len(self.customer_ids):
+            self.calculate_cost_inplace()
+
+        time = self.departure_time
+        prev = self.depot
+        for cust_id in self.customer_ids:
+            customer = self.customers_lookup[cust_id]
+            travel = distance(prev, customer)
+            raw_arrival = time + travel
+            wait = max(0.0, customer.ready_time - raw_arrival)
+            contributions.append((cust_id, wait))
+            arrival = raw_arrival + wait
+            time = arrival + customer.service_time
+            prev = customer
+
+        return contributions
+
     
     def get_tight_window_count(self, slack_threshold: float = 10.0) -> int:
         """Count customers with slack < threshold"""
@@ -315,8 +432,37 @@ class Solution:
         self.total_cost += route.total_cost
     
     def update_cost(self):
-        """Recalculate total from routes"""
-        self.total_cost = sum(r.total_cost for r in self.routes)
+        """
+        Recalculate penalised total cost from routes.
+
+        Base distance+waiting is taken from each route.total_cost.
+        A vehicle-count penalty λ * num_vehicles is added, where
+        λ is approximated as the average route length.
+        """
+        if not self.routes:
+            self.total_cost = 0.0
+            self.num_vehicles = 0
+            return
+
+        # ensure per-route costs are up to date
+        base_distance = 0.0
+        for r in self.routes:
+            base_distance += r.calculate_cost_inplace()
+
+        self.num_vehicles = len(self.routes)
+
+        # λ: dynamic penalty using distance and waiting signals
+        avg_route_cost = base_distance / max(self.num_vehicles, 1)
+        avg_waiting = 0.0
+        for r in self.routes:
+            avg_waiting += r.get_waiting_time()
+        avg_waiting = avg_waiting / max(self.num_vehicles, 1)
+
+        # Encourage fewer vehicles but react to waiting (tight time windows)
+        lambda_penalty = 0.6 * avg_route_cost + 0.2 * avg_waiting + 30.0
+        lambda_penalty = max(40.0, min(lambda_penalty, 250.0))
+
+        self.total_cost = base_distance + lambda_penalty * self.num_vehicles
     
     def is_feasible(self) -> bool:
         """Check if all routes are feasible"""

@@ -1,10 +1,10 @@
 """
-Limited Candidate Multiple Insertion Heuristic (MIH)
-Memory-efficient implementation with candidate sampling
+Limited Candidate Regret-2 Multiple Insertion Heuristic (MIH)
+Designed to leave structured improvement potential for MDS
 """
 
 import random
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from core.data_structures import Customer, Route, Solution, distance
 
 
@@ -16,202 +16,172 @@ def limited_candidate_mih(
     min_candidates: int = 3,
     random_seed: Optional[int] = None
 ) -> Solution:
-    """
-    Limited Candidate MIH - intentionally sub-optimal to leave improvement opportunities
-    
-    Key innovation: Sample only 30-50% of candidates at each insertion step
-    instead of evaluating all possibilities
-    
-    Memory efficient:
-    - Works with customer indices, not object copies
-    - Calculates distances on-the-fly
-    - No distance matrix caching
-    - Reuses route evaluation buffers
-    
-    Args:
-        depot: Depot customer
-        customers: List of customer objects
-        vehicle_capacity: Vehicle capacity constraint
-        candidate_ratio: Fraction of candidates to sample (0.3 = 30%)
-        min_candidates: Minimum number of candidates to always check
-        random_seed: Random seed for reproducibility
-    
-    Returns:
-        Solution object with routes
-    """
+
     if random_seed is not None:
         random.seed(random_seed)
-    
-    # Create customers lookup dictionary (reference, not copies)
+
     customers_lookup: Dict[int, Customer] = {c.id: c for c in customers}
-    
-    # Track unrouted customers by ID only (not objects)
     unrouted_ids: List[int] = [c.id for c in customers]
-    
+    random.shuffle(unrouted_ids)  # weaken/perturb initial order
+
     solution = Solution()
-    
+
+    # Pre-create one empty route
+    routes: List[Route] = []
+
     while unrouted_ids:
-        # Create new route (single route object, reused)
-        route = Route(depot, vehicle_capacity, customers_lookup)
-        
-        # Try to insert customers into this route
-        improved = True
-        while improved and unrouted_ids:
-            improved = False
-            
-            # KEY: Only check subset of candidates
-            num_candidates = max(min_candidates, int(len(unrouted_ids) * candidate_ratio))
-            candidate_indices = random.sample(range(len(unrouted_ids)), min(num_candidates, len(unrouted_ids)))
-            
-            best_customer_idx = None
+        # Ensure at least one route exists
+        if not routes:
+            routes.append(Route(depot, vehicle_capacity, customers_lookup))
+
+        # -------------------------------
+        # REGRET-2 SELECTION
+        # -------------------------------
+        best_choice: Optional[
+            Tuple[float, float, int, Route, int]
+        ] = None
+
+        num_candidates = max(
+            min_candidates,
+            int(len(unrouted_ids) * candidate_ratio)
+        )
+
+        sampled_ids = random.sample(
+            unrouted_ids,
+            min(num_candidates, len(unrouted_ids))
+        )
+
+        for customer_id in sampled_ids:
+            customer = customers_lookup[customer_id]
+
+            best = float('inf')
+            second_best = float('inf')
+            best_route = None
             best_position = None
-            best_cost = float('inf')
-            
-            # Calculate on-the-fly, don't store
-            for idx in candidate_indices:
-                customer_id = unrouted_ids[idx]
-                customer = customers_lookup[customer_id]
-                
-                # Try all valid positions in current route
-                for position in range(len(route.customer_ids) + 1):
-                    # Calculate insertion cost immediately, don't store
-                    cost = calculate_insertion_cost_inline(route, customer, position)
-                    
-                    if cost < best_cost:
-                        best_cost = cost
-                        best_customer_idx = idx
-                        best_position = position
-            
-            # Insert best candidate if found
-            if best_customer_idx is not None:
-                customer_id = unrouted_ids[best_customer_idx]
-                
-                # Try insertion (checks feasibility)
-                if route.insert_inplace(customer_id, best_position):
-                    unrouted_ids.pop(best_customer_idx)
-                    improved = True
-                else:
-                    # If insertion failed, remove from candidates for this route
-                    # (will be tried in next route)
-                    break
-        
-        # Add route to solution
-        if len(route.customer_ids) > 0:
-            solution.add_route(route)
-    
+
+            for route in routes:
+                for pos in range(len(route.customer_ids) + 1):
+                    cost = calculate_insertion_cost_inline(route, customer, pos)
+
+                    if cost < best:
+                        second_best = best
+                        best = cost
+                        best_route = route
+                        best_position = pos
+                    elif cost < second_best:
+                        second_best = cost
+
+            # Also consider opening a NEW route (penalized)
+            new_route = Route(depot, vehicle_capacity, customers_lookup)
+            cost_new = calculate_insertion_cost_inline(new_route, customer, 0)
+
+            if cost_new < best:
+                second_best = best
+                best = cost_new
+                best_route = new_route
+                best_position = 0
+
+            regret = second_best - best
+
+            if best < float('inf'):
+                candidate = (regret, best, customer_id, best_route, best_position)
+                if best_choice is None or regret > best_choice[0]:
+                    best_choice = candidate
+
+        # -------------------------------
+        # INSERT SELECTED CUSTOMER
+        # -------------------------------
+        if best_choice is None:
+            # Forced new route fallback
+            cid = unrouted_ids.pop(0)
+            r = Route(depot, vehicle_capacity, customers_lookup)
+            r.insert_inplace(cid, 0)
+            routes.append(r)
+            continue
+
+        _, _, customer_id, route, position = best_choice
+
+        # If route is new, register it
+        if route not in routes:
+            routes.append(route)
+
+        inserted = route.insert_inplace(customer_id, position)
+        if inserted:
+            unrouted_ids.remove(customer_id)
+        else:
+            # Fallback: open new route
+            fallback = Route(depot, vehicle_capacity, customers_lookup)
+            fallback.insert_inplace(customer_id, 0)
+            routes.append(fallback)
+            unrouted_ids.remove(customer_id)
+
+    # Finalize solution
+    for r in routes:
+        if r.customer_ids:
+            solution.add_route(r)
+
     solution.update_cost()
     return solution
 
 
+# ==========================================================
+# COST FUNCTION (INTENTIONALLY IMPERFECT)
+# ==========================================================
+
 def calculate_insertion_cost_inline(route: Route, customer: Customer, position: int) -> float:
     """
-    Calculate cost of inserting customer at position in route
-    Calculated on-the-fly, no caching
-    
-    Cost = additional travel distance + waiting time penalty
-    
-    Returns float('inf') if insertion would violate constraints
+    Fast approximate insertion cost
+    Leaves room for MDS improvement
     """
-    # Check capacity constraint first (cheap check)
+
+    # Capacity
     if route.current_load + customer.demand > route.vehicle_capacity:
         return float('inf')
-    
-    # Calculate additional travel distance
+
     additional_distance = 0.0
-    
+
     if len(route.customer_ids) == 0:
-        # Empty route: depot -> customer -> depot
-        additional_distance = distance(route.depot, customer) + distance(customer, route.depot)
+        additional_distance = (
+            distance(route.depot, customer) +
+            distance(customer, route.depot)
+        )
+        # Penalize new vehicle
+        additional_distance += 60.0
+
     elif position == 0:
-        # Insert at beginning: depot -> customer -> first_customer
-        first_customer = route.get_customer(0)
-        old_distance = distance(route.depot, first_customer)
-        new_distance = distance(route.depot, customer) + distance(customer, first_customer)
-        additional_distance = new_distance - old_distance
+        first = route.get_customer(0)
+        additional_distance = (
+            distance(route.depot, customer) +
+            distance(customer, first) -
+            distance(route.depot, first)
+        )
+
     elif position == len(route.customer_ids):
-        # Insert at end: last_customer -> customer -> depot
-        last_customer = route.get_customer(len(route.customer_ids) - 1)
-        old_distance = distance(last_customer, route.depot)
-        new_distance = distance(last_customer, customer) + distance(customer, route.depot)
-        additional_distance = new_distance - old_distance
+        last = route.get_customer(-1)
+        additional_distance = (
+            distance(last, customer) +
+            distance(customer, route.depot) -
+            distance(last, route.depot)
+        )
+
     else:
-        # Insert in middle: prev -> customer -> next
-        prev_customer = route.get_customer(position - 1)
-        next_customer = route.get_customer(position)
-        old_distance = distance(prev_customer, next_customer)
-        new_distance = distance(prev_customer, customer) + distance(customer, next_customer)
-        additional_distance = new_distance - old_distance
-    
-    # Estimate waiting time penalty (simplified - actual waiting calculated during insertion)
-    # Use time window tightness as proxy
-    window_width = customer.due_date - customer.ready_time
-    if window_width < 10:  # Tight window
-        additional_distance += 5.0  # Penalty
-    
+        prev = route.get_customer(position - 1)
+        nxt = route.get_customer(position)
+        additional_distance = (
+            distance(prev, customer) +
+            distance(customer, nxt) -
+            distance(prev, nxt)
+        )
+
+    # Time-window tightness penalty
+    tw_width = customer.due_date - customer.ready_time
+    if tw_width < 20:
+        additional_distance += 10.0
+    elif tw_width < 40:
+        additional_distance += 4.0
+
+    # Prefer consolidating routes
+    if len(route.customer_ids) > 0:
+        additional_distance -= 3.0
+
     return additional_distance
-
-
-def calculate_insertion_cost_with_feasibility(route: Route, customer: Customer, position: int) -> float:
-    """
-    More accurate insertion cost calculation that checks time window feasibility
-    Still calculated on-the-fly, but more expensive
-    """
-    # Quick capacity check
-    if route.current_load + customer.demand > route.vehicle_capacity:
-        return float('inf')
-    
-    # Simulate insertion to check time windows
-    # We'll calculate arrival time at position
-    if len(route.customer_ids) == 0:
-        # Empty route
-        travel_time = distance(route.depot, customer)
-        arrival_time = route.departure_time + travel_time
-    elif position == 0:
-        # Beginning of route
-        travel_time = distance(route.depot, customer)
-        arrival_time = route.departure_time + travel_time
-    else:
-        # After previous customer
-        prev_customer = route.get_customer(position - 1)
-        prev_arrival = route.arrival_times[position - 1]
-        prev_departure = prev_arrival + prev_customer.service_time
-        travel_time = distance(prev_customer, customer)
-        arrival_time = prev_departure + travel_time
-    
-    # Check time window
-    arrival_time = max(arrival_time, customer.ready_time)
-    if arrival_time > customer.due_date:
-        return float('inf')  # Infeasible
-    
-    # Calculate additional distance (same as above)
-    additional_distance = 0.0
-    if len(route.customer_ids) == 0:
-        additional_distance = distance(route.depot, customer) + distance(customer, route.depot)
-    elif position == 0:
-        first_customer = route.get_customer(0)
-        old_distance = distance(route.depot, first_customer)
-        new_distance = distance(route.depot, customer) + distance(customer, first_customer)
-        additional_distance = new_distance - old_distance
-    elif position == len(route.customer_ids):
-        last_customer = route.get_customer(len(route.customer_ids) - 1)
-        old_distance = distance(last_customer, route.depot)
-        new_distance = distance(last_customer, customer) + distance(customer, route.depot)
-        additional_distance = new_distance - old_distance
-    else:
-        prev_customer = route.get_customer(position - 1)
-        next_customer = route.get_customer(position)
-        old_distance = distance(prev_customer, next_customer)
-        new_distance = distance(prev_customer, customer) + distance(customer, next_customer)
-        additional_distance = new_distance - old_distance
-    
-    # Add waiting time
-    waiting_time = max(0.0, customer.ready_time - (arrival_time - travel_time))
-    
-    return additional_distance + waiting_time * 0.5  # Weight waiting time
-
-
-
-
-
-
-
