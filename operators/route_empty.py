@@ -44,7 +44,6 @@ def route_empty_inplace(solution) -> bool:
                 # Check every insertion position in the other route
                 for pos in range(len(other_route.customer_ids) + 1):
                     # Check feasibility and cost delta
-                    # We use a high tolerance because killing a route is worth a distance increase
                     delta, feasible = other_route.get_move_delta_cost_for_external_customer(cust_id, pos)
                     
                     if feasible:
@@ -55,16 +54,40 @@ def route_empty_inplace(solution) -> bool:
                     break
             
             if not found_home:
-                break # Can't empty this route, try the next smallest route
+                # Can't find a home for this customer -> abort entire operation
+                moves_to_execute = []
+                break
         
-        # 2. If we found a home for EVERY customer, execute the kill
+        # 2. If we found a home for EVERY customer, execute ALL moves atomically
         if len(moves_to_execute) == len(customers_to_move):
-            for cust_id, dest_idx, pos in moves_to_execute:
-                solution.routes[dest_idx].insert_inplace(cust_id, pos)
+            # Backup state in case any insertion fails
+            backup_routes = []
+            for r in solution.routes:
+                backup_routes.append({
+                    'ids': list(r.customer_ids),
+                    'arrivals': list(r.arrival_times),
+                    'load': r.current_load
+                })
             
-            # Remove the now-empty route
-            solution.routes.pop(target_idx)
-            return True
+            # Try to execute all insertions
+            all_insertions_succeeded = True
+            for cust_id, dest_idx, pos in moves_to_execute:
+                if not solution.routes[dest_idx].insert_inplace(cust_id, pos):
+                    # Insertion failed -> rollback all previous insertions
+                    all_insertions_succeeded = False
+                    # Restore all routes to backup state
+                    for i, r in enumerate(solution.routes):
+                        r.customer_ids = backup_routes[i]['ids']
+                        r.arrival_times = backup_routes[i]['arrivals']
+                        r.current_load = backup_routes[i]['load']
+                        r._recalculate_from(0)
+                        r.calculate_cost_inplace()
+                    break
+            
+            if all_insertions_succeeded:
+                # All insertions succeeded -> remove the now-empty route
+                solution.routes.pop(target_idx)
+                return True
 
     return False
 

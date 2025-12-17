@@ -31,7 +31,43 @@ def selective_mds(solution: Solution,
     """
 
     # --- Setup & Adaptive Parameters ---
-    total_customers = sum(len(r.customer_ids) for r in solution.routes)
+    total_customers = solution.get_total_customers()
+    # Validate coverage BEFORE doing any optimization to catch construction bugs early
+    solution.validate_coverage(total_customers)
+    
+    # Track required IDs for restoration safety net
+    all_required_ids = set(solution.get_all_customer_ids())
+    if len(all_required_ids) != total_customers:
+        raise ValueError(f"Mismatch: {len(all_required_ids)} unique IDs but {total_customers} total customers")
+    
+    # Get depot and capacity for restoration (if needed)
+    depot = solution.routes[0].depot if solution.routes else None
+    vehicle_capacity = solution.routes[0].vehicle_capacity if solution.routes else 0
+
+    # Track restoration counts per customer ID to prevent infinite loops
+    restoration_counts = {}  # customer_id -> count
+
+    def restore_missing():
+        current_ids = set(solution.get_all_customer_ids())
+        missing_ids = list(all_required_ids - current_ids)
+        if missing_ids and depot:
+            # Check restoration limits
+            restored_any = False
+            for mid in missing_ids:
+                restoration_counts[mid] = restoration_counts.get(mid, 0) + 1
+                if restoration_counts[mid] <= 3:
+                    print(f"Restored customer {mid} to maintain 100% coverage.")
+                    restored_any = True
+                else:
+                    print(f"WARNING: Customer {mid} restored {restoration_counts[mid]} times - skipping further restoration.")
+            
+            if restored_any:
+                # Only restore customers that haven't exceeded the limit
+                to_restore = [mid for mid in missing_ids if restoration_counts[mid] <= 3]
+                if to_restore:
+                    solution.restore_missing_customers(to_restore, depot, vehicle_capacity)
+                    solution.validate_coverage(total_customers)
+    
     if total_customers > 100:
         top_n_critical = 2  # Focus intensity on large instances
         max_iterations = min(max_iterations, 30)
@@ -45,15 +81,39 @@ def selective_mds(solution: Solution,
     while improved_fleet:
         improved_fleet = False
         
+        # Track customer count before operator
+        customers_before = solution.get_total_customers()
+        
         # 1. Try inter-route relocation to shift load
         if inter_route_relocate_inplace(solution, temp_arrival_buffer):
             solution.update_cost()
             improved_fleet = True
-            
+        
+        # Integrity check after inter_route_relocate
+        customers_after = solution.get_total_customers()
+        if customers_after < customers_before:
+            missing_count = customers_before - customers_after
+            print(f"WARNING: inter_route_relocate dropped {missing_count} customers. Restoring...")
+            restore_missing()
+            # If restoration limit exceeded, break to prevent infinite loop
+            if any(restoration_counts.get(cid, 0) > 3 for cid in all_required_ids - set(solution.get_all_customer_ids())):
+                break
+        
         # 2. Specifically target 'killing' routes with < 6 customers
+        customers_before = solution.get_total_customers()
         if route_empty_inplace(solution):
             solution.update_cost()
             improved_fleet = True
+        
+        # Integrity check after route_empty
+        customers_after = solution.get_total_customers()
+        if customers_after < customers_before:
+            missing_count = customers_before - customers_after
+            print(f"WARNING: route_empty dropped {missing_count} customers. Restoring...")
+            restore_missing()
+            # If restoration limit exceeded, break to prevent infinite loop
+            if any(restoration_counts.get(cid, 0) > 3 for cid in all_required_ids - set(solution.get_all_customer_ids())):
+                break
             
         if not improved_fleet:
             break
@@ -61,9 +121,23 @@ def selective_mds(solution: Solution,
     # --- Phase 2: Escape Local Optima (LNS) ---
     # Perform a few rounds of Destroy & Repair to reshuffle clusters
     for i in range(3):
+        customers_before = solution.get_total_customers()
         # Removal fraction 0.20 is a good balance for 100-customer instances
         if lns_destroy_repair(solution, removal_fraction=0.20, random_seed=42 + i):
             solution.update_cost()
+        
+        # Integrity check after LNS
+        customers_after = solution.get_total_customers()
+        if customers_after < customers_before:
+            missing_count = customers_before - customers_after
+            print(f"WARNING: LNS dropped {missing_count} customers. Restoring...")
+            restore_missing()
+            # If restoration limit exceeded, skip remaining LNS iterations
+            if any(restoration_counts.get(cid, 0) > 3 for cid in all_required_ids - set(solution.get_all_customer_ids())):
+                break
+        elif customers_after > customers_before:
+            # LNS should not add customers (only restore), but validate anyway
+            solution.validate_coverage(total_customers)
 
     # --- Phase 3: Deep Refinement ---
     iteration = 0
@@ -87,6 +161,9 @@ def selective_mds(solution: Solution,
             while route_improved:
                 route_improved = False
                 
+                # Track customer count before operator
+                customers_before = solution.get_total_customers()
+                
                 # Operator 1: Intra-route 2-opt (Essential for path cleaning)
                 if intra_route_2opt_inplace(route):
                     route_improved = True
@@ -104,15 +181,35 @@ def selective_mds(solution: Solution,
                 elif relocate_operator_inplace(route, temp_arrival_buffer, max_relocations=30):
                     route_improved = True
 
+                # Integrity check after each operator
+                customers_after = solution.get_total_customers()
+                if customers_after < customers_before:
+                    missing_count = customers_before - customers_after
+                    print(f"WARNING: Operator dropped {missing_count} customers. Restoring...")
+                    restore_missing()
+                    # If restoration limit exceeded, skip this route optimization
+                    if any(restoration_counts.get(cid, 0) > 3 for cid in all_required_ids - set(solution.get_all_customer_ids())):
+                        break
+
                 if route_improved:
                     global_improved = True
                     # Update only the current route and penalized solution cost
-                    solution.update_cost() 
+                    solution.update_cost()
+
+        # After each outer iteration, ensure coverage is intact (but limit restorations)
+        restore_missing() 
 
         if global_improved:
             no_improvement = 0
         else:
             no_improvement += 1
 
+        # After each outer iteration, ensure coverage is intact
+        restore_missing()
+
     solution.update_cost()
+    
+    # Final validation: ensure no customers were dropped during optimization
+    solution.validate_coverage(total_customers)
+    
     return solution

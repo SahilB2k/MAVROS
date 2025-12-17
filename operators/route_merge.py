@@ -59,12 +59,40 @@ def merge_underfilled_routes(solution: Solution,
                     continue
                 
                 # Try moving all customers from src to dst
+                # ATOMIC: Check feasibility for ALL customers before moving ANY
                 customers_to_move = list(src_route.customer_ids)
+                
+                # Pre-check: verify all customers can be inserted
+                can_merge_all = True
+                for cust_id in customers_to_move:
+                    # Use get_move_delta_cost_for_external_customer to check feasibility
+                    # We need to check each position, but for simplicity, check end position
+                    # Note: This is a simplified check; full check would require trying all positions
+                    customer = customers_lookup[cust_id]
+                    if dst_route.current_load + customer.demand > dst_route.vehicle_capacity:
+                        can_merge_all = False
+                        break
+                
+                if not can_merge_all:
+                    continue  # Skip this merge attempt
+                
+                # Backup state before attempting merge
+                src_ids_before = list(src_route.customer_ids)
+                dst_ids_before = list(dst_route.customer_ids)
+                src_load_before = src_route.current_load
+                dst_load_before = dst_route.current_load
+                src_arrival_before = list(src_route.arrival_times)
+                dst_arrival_before = list(dst_route.arrival_times)
+                
                 moved_all = True
+                moved_customers = []  # Track successfully moved customers for rollback
                 
                 for cust_id in customers_to_move:
                     # Try inserting at end of dst route
-                    if not dst_route.insert_inplace(cust_id, len(dst_route.customer_ids)):
+                    insert_pos = len(dst_route.customer_ids)
+                    if dst_route.insert_inplace(cust_id, insert_pos):
+                        moved_customers.append(cust_id)
+                    else:
                         moved_all = False
                         break
                 
@@ -73,8 +101,8 @@ def merge_underfilled_routes(solution: Solution,
                     solution.routes = [r for r in solution.routes if r is not src_route]
                     solution.update_cost()
                     
-                    # Verify improvement
-                    if solution.total_cost < current_obj - 1e-6 or len(solution.routes) < len(routes):
+                    # Verify improvement and feasibility
+                    if solution.is_feasible() and (solution.total_cost < current_obj - 1e-6 or len(solution.routes) < len(routes)):
                         merged = True
                         # Rebuild routes_with_load
                         routes = solution.routes
@@ -82,8 +110,9 @@ def merge_underfilled_routes(solution: Solution,
                         routes_with_load.sort(key=lambda x: x[1])
                         break
                     else:
-                        # Rollback - move customers back
-                        for cust_id in customers_to_move:
+                        # Rollback: restore src route and move customers back
+                        solution.routes.append(src_route)
+                        for cust_id in moved_customers:
                             pos = dst_route.customer_ids.index(cust_id)
                             dst_route.customer_ids.pop(pos)
                             dst_route.arrival_times.pop(pos)
@@ -92,6 +121,14 @@ def merge_underfilled_routes(solution: Solution,
                             src_route.arrival_times.append(0.0)
                             src_route.current_load += customers_lookup[cust_id].demand
                         
+                        # Restore original state
+                        src_route.customer_ids = src_ids_before
+                        src_route.arrival_times = src_arrival_before
+                        src_route.current_load = src_load_before
+                        dst_route.customer_ids = dst_ids_before
+                        dst_route.arrival_times = dst_arrival_before
+                        dst_route.current_load = dst_load_before
+                        
                         # Recalculate schedules
                         src_route._recalculate_from(0)
                         src_route.calculate_cost_inplace()
@@ -99,15 +136,27 @@ def merge_underfilled_routes(solution: Solution,
                         dst_route.calculate_cost_inplace()
                         solution.update_cost()
                 else:
-                    # Rollback partial moves
-                    for cust_id in customers_to_move:
-                        if cust_id in dst_route.customer_ids:
-                            pos = dst_route.customer_ids.index(cust_id)
-                            dst_route.customer_ids.pop(pos)
-                            dst_route.arrival_times.pop(pos)
-                            dst_route.current_load -= customers_lookup[cust_id].demand
+                    # Rollback partial moves - restore ALL moved customers
+                    for cust_id in moved_customers:
+                        pos = dst_route.customer_ids.index(cust_id)
+                        dst_route.customer_ids.pop(pos)
+                        dst_route.arrival_times.pop(pos)
+                        dst_route.current_load -= customers_lookup[cust_id].demand
+                    
+                    # Restore original state
+                    src_route.customer_ids = src_ids_before
+                    src_route.arrival_times = src_arrival_before
+                    src_route.current_load = src_load_before
+                    dst_route.customer_ids = dst_ids_before
+                    dst_route.arrival_times = dst_arrival_before
+                    dst_route.current_load = dst_load_before
+                    
+                    # Recalculate schedules
+                    src_route._recalculate_from(0)
+                    src_route.calculate_cost_inplace()
                     dst_route._recalculate_from(0)
                     dst_route.calculate_cost_inplace()
+                    solution.update_cost()
             
             if merged:
                 break

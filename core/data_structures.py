@@ -51,11 +51,15 @@ class Route:
     """
     __slots__ = ['customer_ids', 'arrival_times', 'departure_time', 
                  'current_load', 'total_cost', 'depot', 'customers_lookup', 
-                 'vehicle_capacity', '_dist_cache']
+                 'vehicle_capacity', '_dist_cache', 'load_at_customers',
+                 'waiting_times']
     
     def __init__(self, depot: Customer, vehicle_capacity: int, customers_lookup: Dict[int, Customer]):
         self.customer_ids: List[int] = [] 	    # List of IDs (not Customer objects)
         self.arrival_times: List[float] = [] 	# Parallel array
+        # Optional auxiliary arrays; kept in sync to avoid index errors
+        self.load_at_customers: List[float] = []
+        self.waiting_times: List[float] = []
         self.departure_time: float = 0.0
         self.current_load: int = 0
         self.total_cost: float = 0.0          # total_cost = distance + total_waiting
@@ -139,8 +143,8 @@ class Route:
             self._recalculate_from(position)
             return False
         
-        # Cost is updated by caller (e.g., in selective_mds) - NOT HERE
-        # self.calculate_cost_inplace()
+        # Automatically sync cost and arrays after successful insertion
+        self.calculate_cost_inplace()
         return True
     
     def _recalculate_from(self, start_idx: int):
@@ -152,6 +156,14 @@ class Route:
         n = len(customer_ids)
         if n == 0:
             return
+
+        # Defensive resize to prevent index errors
+        if len(self.arrival_times) != n:
+            self.arrival_times = [0.0] * n
+        if len(self.load_at_customers) != n:
+            self.load_at_customers = [0.0] * n
+        if len(self.waiting_times) != n:
+            self.waiting_times = [0.0] * n
         
         # Start from depot or from previous customer
         if start_idx == 0:
@@ -165,6 +177,8 @@ class Route:
         
         customers_lookup = self.customers_lookup
         arrival_times = self.arrival_times
+        load_at_customers = self.load_at_customers
+        waiting_times = self.waiting_times
 
         # Recalculate for all customers from start_idx
         for i in range(start_idx, n):
@@ -176,9 +190,12 @@ class Route:
             arrival_time = current_time + travel_time
             
             # Apply time window constraint (wait if early)
-            arrival_time = max(arrival_time, customer.ready_time)
+            wait = max(0.0, customer.ready_time - arrival_time)
+            arrival_time = arrival_time + wait
             
             arrival_times[i] = arrival_time
+            waiting_times[i] = wait
+            load_at_customers[i] = self.current_load  # current_load only decreases/increases externally
             
             # Update for next iteration
             current_time = arrival_time + customer.service_time
@@ -681,3 +698,61 @@ class Solution:
     def is_feasible(self) -> bool:
         """Check if all routes are feasible"""
         return all(route.is_feasible() for route in self.routes)
+    
+    def get_total_customers(self) -> int:
+        """
+        Return the total number of customers assigned to routes.
+        This is more efficient than recalculating each time.
+        """
+        return sum(len(r.customer_ids) for r in self.routes)
+    
+    def get_all_customer_ids(self) -> List[int]:
+        """
+        Return a list of all customer IDs currently assigned to routes.
+        Useful for tracking and restoration.
+        """
+        all_ids = []
+        for route in self.routes:
+            all_ids.extend(route.customer_ids)
+        return all_ids
+    
+    def validate_coverage(self, total_customers: int) -> None:
+        """
+        Validate that the total number of customers assigned to routes
+        matches the expected total_customers.
+        Raises ValueError if coverage is violated.
+        """
+        covered = self.get_total_customers()
+        if covered != total_customers:
+            raise ValueError(
+                f"Customer coverage violation: expected {total_customers}, "
+                f"but found {covered} assigned customers."
+            )
+    
+    def restore_missing_customers(self, expected_ids: List[int], depot: Customer, vehicle_capacity: int) -> None:
+        """
+        Restore any missing customer IDs by creating new routes for them.
+        This is a safety net to ensure 100% coverage.
+        
+        Args:
+            expected_ids: List of all customer IDs that should be present
+            depot: Depot customer for creating new routes
+            vehicle_capacity: Vehicle capacity for new routes
+        """
+        current_ids = set(self.get_all_customer_ids())
+        expected_set = set(expected_ids)
+        missing_ids = expected_set - current_ids
+        
+        if missing_ids:
+            customers_lookup = self.routes[0].customers_lookup if self.routes else {}
+            for missing_id in missing_ids:
+                print(f"Restored customer {missing_id} to a new route after operator leak.")
+                new_route = Route(depot, vehicle_capacity, customers_lookup)
+                # Force insertion - if insert_inplace fails, manually assign
+                if not new_route.insert_inplace(missing_id, 0):
+                    new_route.customer_ids = [missing_id]
+                    new_route.arrival_times = [0.0]
+                    new_route.current_load = customers_lookup[missing_id].demand
+                    new_route.departure_time = 0.0
+                    new_route.calculate_cost_inplace()
+                self.add_route(new_route)

@@ -1,59 +1,28 @@
 """
-MIH-MDS Hybrid Solver
-Combines Limited Candidate MIH with Selective MDS
-Single solution object maintained throughout
+MIH-MDS Hybrid Solver with Multi-Pass Improvement and Coverage Validation.
 """
 
 from typing import Optional, List, Tuple, Dict
+import copy
 from core.data_structures import Customer, Solution
 from algorithms.mih import limited_candidate_mih
 from algorithms.mds import selective_mds
-
-
-# Configuration
-CANDIDATE_RATIO = 0.3  # Sample 30% of candidates in MIH
-MIN_CANDIDATES = 3
-MAX_MDS_ITERATIONS = 50
-TOP_N_CRITICAL_ROUTES = 5
-
+from operators.route_merge import merge_underfilled_routes
 
 def solve_vrptw(
     depot: Customer,
-    customers: list[Customer],
+    customers: List[Customer],
     vehicle_capacity: int,
-    candidate_ratio: float = CANDIDATE_RATIO,
-    min_candidates: int = MIN_CANDIDATES,
-    max_mds_iterations: int = MAX_MDS_ITERATIONS,
-    top_n_critical: int = TOP_N_CRITICAL_ROUTES,
+    candidate_ratio: float = 0.3,
+    min_candidates: int = 5,
+    max_mds_iterations: int = 50,
+    top_n_critical: int = 5,
     random_seed: Optional[int] = None
 ) -> Solution:
     """
-    Solve VRPTW using MIH-MDS hybrid algorithm
-    
-    Phase 1: Limited Candidate MIH (intentionally sub-optimal)
-    Phase 2: Selective MDS (targeted improvement)
-    
-    Memory efficient:
-    - Single solution object throughout
-    - All modifications in place
-    - No distance matrix caching
-    - Minimal temporary objects
-    
-    Args:
-        depot: Depot customer
-        customers: List of customer objects
-        vehicle_capacity: Vehicle capacity constraint
-        candidate_ratio: Fraction of candidates to sample in MIH (0.3 = 30%)
-        min_candidates: Minimum candidates to always check
-        max_mds_iterations: Maximum MDS improvement iterations
-        top_n_critical: Number of critical routes to improve per MDS iteration
-        random_seed: Random seed for reproducibility
-    
-    Returns:
-        Solution object (feasible VRPTW solution)
+    Standard wrapper for the hybrid solver to satisfy main.py imports.
     """
-    # Phase 1: Limited Candidate MIH
-    # Generates fast, feasible, but improvable solution
+    # 1. Construction
     solution = limited_candidate_mih(
         depot=depot,
         customers=customers,
@@ -62,83 +31,108 @@ def solve_vrptw(
         min_candidates=min_candidates,
         random_seed=random_seed
     )
-    
-    # Phase 2: Selective MDS
-    # Improves critical routes using in-place operators
+
+    # 2. Improvement
     solution = selective_mds(
         solution=solution,
         max_iterations=max_mds_iterations,
         top_n_critical=top_n_critical
     )
-    
+
     return solution
 
-
 def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alpha_vehicle=1000.0):
-    from algorithms.mih import limited_candidate_mih
-    from algorithms.mds import selective_mds
-    from operators.route_merge import merge_underfilled_routes
-    
+    """
+    Enhanced Hybrid Solver with debug checkpoints to track customer loss.
+    """
     depot = instance.get('depot')
     customers = instance.get('customers')
     vehicle_capacity = instance.get('vehicle_capacity')
     customers_lookup = {c.id: c for c in customers}
     n = len(customers)
     
-    # Adaptive iterations
-    if max_iterations is None:
-        max_iterations = n * 2 if n <= 100 else n
-    num_passes = 2
-    
-    # PHASE 1: Initial solution
+    # ------------------------------------------------------------
+    # PHASE 1: Initial Construction
+    # ------------------------------------------------------------
     solution = limited_candidate_mih(
-        depot=depot, customers=customers, vehicle_capacity=vehicle_capacity,
-        candidate_ratio=0.3, min_candidates=3, random_seed=42
+        depot=depot, 
+        customers=customers, 
+        vehicle_capacity=vehicle_capacity,
+        candidate_ratio=0.3, 
+        min_candidates=5, 
+        random_seed=42
     )
     
-    solution.update_cost(alpha_vehicle=alpha_vehicle)
-    # CAPTURE INITIAL VALUES (raw cost without penalty for fair comparison)
-    initial_cost_fixed = float(sum(route.total_cost for route in solution.routes))
-    initial_vehicles_fixed = int(solution.num_vehicles)
-    
-    # PHASE 2: Improvement (multiple passes for quality)
-    # Use 3-5 passes depending on instance size
-    num_passes = 3 if n <= 50 else (4 if n <= 100 else 5)
-    base_iterations = max_iterations // num_passes
-    
+    # CHECKPOINT 1: Construction Integrity
+    mih_count = sum(len(r.customer_ids) for r in solution.routes)
+    print(f"DEBUG [Checkpoint 1]: MIH constructed solution with {mih_count}/{n} customers.")
+
+    # Capture Initial Stats (Raw costs)
+    initial_cost_raw = sum(route.total_cost for route in solution.routes)
+    initial_vehicles = len(solution.routes)
+
+    # ------------------------------------------------------------
+    # PHASE 2: Multi-Pass Improvement (MDS)
+    # ------------------------------------------------------------
+    num_passes = 3 if n <= 50 else 5
+    total_iters = max_iterations if max_iterations else 100
+    iters_per_pass = total_iters // num_passes
+
     for pass_num in range(num_passes):
         solution = selective_mds(
             solution=solution,
-            max_iterations=base_iterations,
-            top_n_critical=min(2 if n > 50 else 5, len(solution.routes)),
-            early_termination=20  # Increased from 5 to 20 for deeper local search
+            max_iterations=iters_per_pass,
+            top_n_critical=min(5, len(solution.routes))
         )
-        solution.update_cost(alpha_vehicle=alpha_vehicle)
         
-        if pass_num == 0 and len(solution.routes) > 1:
-            solution = merge_underfilled_routes(
-                solution=solution, vehicle_capacity=vehicle_capacity,
-                customers_lookup=customers_lookup, utilization_threshold=0.5
-            )
-            solution.update_cost(alpha_vehicle=alpha_vehicle)
+        # CHECKPOINT 2: MDS Integrity
+        mds_count = sum(len(r.customer_ids) for r in solution.routes)
+        if mds_count < mih_count:
+            print(f"DEBUG [Warning]: MDS pass {pass_num+1} dropped {mih_count - mds_count} customers!")
+            mih_count = mds_count # Update tracker
+
+        # Phase 2b: Merge pass with integrity guard
+        if pass_num == 0:
+            pre_merge_solution = copy.deepcopy(solution)
+            try:
+                solution = merge_underfilled_routes(
+                    solution=solution, 
+                    vehicle_capacity=vehicle_capacity,
+                    customers_lookup=customers_lookup, 
+                    utilization_threshold=0.6
+                )
+                merge_count = sum(len(r.customer_ids) for r in solution.routes)
+                print(f"DEBUG [Checkpoint 3]: Merge pass finished with {merge_count}/{n} customers.")
+                if merge_count < n:
+                    print("WARNING: Merge reduced customer count; rolling back.")
+                    solution = pre_merge_solution
+            except Exception as e:
+                print(f"WARNING: Merge failed with exception {e}; rolling back.")
+                solution = pre_merge_solution
+
+    # ------------------------------------------------------------
+    # FINAL VALIDATION & STATS
+    # ------------------------------------------------------------
+    try:
+        solution.validate_coverage(n)
+    except Exception as e:
+        print(f"WARNING: Coverage validation failed: {e}")
     
-    # FINAL STATS
-    # Calculate raw cost (distance + waiting) without vehicle penalty for fair comparison
-    # This is the actual travel cost, not the penalized objective
+    total_served = sum(len(r.customer_ids) for r in solution.routes)
+    if total_served < n:
+        print(f"\n! WARNING: Integrity Check Failed !")
+        print(f"! Served: {total_served}/{n} customers. !")
+    else:
+        print(f"\n* SUCCESS: All {n}/{n} customers served. *")
+
     raw_final_cost = sum(route.total_cost for route in solution.routes)
-    
-    # Also calculate initial raw cost for comparison
-    solution.update_cost(alpha_vehicle=alpha_vehicle)  # Update penalized cost for internal use
-    final_vehicles = int(solution.num_vehicles)
-    
-    # Calculate improvement percentage using raw costs
-    improvement_pct = ((initial_cost_fixed - raw_final_cost) / initial_cost_fixed * 100) if initial_cost_fixed > 0 else 0.0
+    improvement_pct = ((initial_cost_raw - raw_final_cost) / initial_cost_raw * 100) if initial_cost_raw > 0 else 0
     
     stats = {
-        'initial_cost': float(initial_cost_fixed),
-        'initial_vehicles': int(initial_vehicles_fixed),
-        'final_cost': float(raw_final_cost),  # Raw cost without penalty
-        'final_vehicles': int(final_vehicles),
+        'initial_cost': float(initial_cost_raw),
+        'initial_vehicles': int(initial_vehicles),
+        'final_cost': float(raw_final_cost),
+        'final_vehicles': int(len(solution.routes)),
         'improvement_pct': float(improvement_pct)
     }
     

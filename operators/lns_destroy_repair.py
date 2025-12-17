@@ -201,14 +201,20 @@ def lns_destroy_repair(solution: Solution,
                 inserted = True
                 break
         if not inserted:
-            # Create new route if needed
+            # Create new route if needed - ALWAYS ensure customer is restored
             new_route = Route(depot, capacity, customers_lookup)
             if new_route.insert_inplace(cid, 0):
                 solution.routes.append(new_route)
                 touched_routes.add(id(new_route))
             else:
-                # Could not insert anywhere; this should be rare
-                return False
+                # Fallback: manually assign customer to ensure it's never lost
+                new_route.customer_ids = [cid]
+                new_route.arrival_times = [0.0]
+                new_route.current_load = customers_lookup[cid].demand
+                new_route.departure_time = 0.0
+                new_route.calculate_cost_inplace()
+                solution.routes.append(new_route)
+                touched_routes.add(id(new_route))
 
     # Post-repair polish: 2-opt on touched routes until local optimum
     for r in solution.routes:
@@ -218,58 +224,11 @@ def lns_destroy_repair(solution: Solution,
             while improved:
                 improved = intra_route_2opt_inplace(r)
 
-    solution.update_cost()
-    return solution.total_cost < current_obj - 1e-6
-
-    # Destroy: remove selected customers from their routes
-    for cid in to_remove:
-        for r in routes:
-            if cid in r.customer_ids:
-                pos = r.customer_ids.index(cid)
-                r.customer_ids.pop(pos)
-                r.arrival_times.pop(pos)
-                r.current_load -= r.customers_lookup[cid].demand
-                r._recalculate_from(max(0, pos - 1))
-                r.calculate_cost_inplace()
-                break
-
-    # Remove empty routes
-    solution.routes = [r for r in routes if len(r.customer_ids) > 0]
-
-    touched_routes = set()
-
-    # Repair: reinsert each removed customer
-    # Use existing depot/capacity from first route
-    if not solution.routes:
-        return False
-    depot = solution.routes[0].depot
-    capacity = solution.routes[0].vehicle_capacity
-    customers_lookup = solution.routes[0].customers_lookup
-
-    for cid in to_remove:
-        customer = customers_lookup[cid]
-        inserted = False
-        # try existing routes first
-        for r in solution.routes:
-            if _try_insert_customer(r, cid):
-                touched_routes.add(id(r))
-                inserted = True
-                break
-        if not inserted:
-            # create new route if needed
-            new_route = Route(depot, capacity, customers_lookup)
-            if new_route.insert_inplace(cid, 0):
-                solution.routes.append(new_route)
-                touched_routes.add(id(new_route))
-            else:
-                # could not insert anywhere; abandon and rollback
-                return False
-
-    # Post-repair polish: 2-opt on touched routes
-    for r in solution.routes:
-        if id(r) in touched_routes:
-            from operators.intra_route_2opt import intra_route_2opt_inplace
-            intra_route_2opt_inplace(r)
+    # Safety check: ensure every removed customer ID is present in the repaired solution
+    all_ids_after = [cid for route in solution.routes for cid in route.customer_ids]
+    missing = [cid for cid in to_remove if cid not in all_ids_after]
+    if missing:
+        raise ValueError(f"LNS repair lost customers: {missing}")
 
     solution.update_cost()
     return solution.total_cost < current_obj - 1e-6
