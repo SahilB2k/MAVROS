@@ -130,8 +130,8 @@ def limited_candidate_mih(
 
 def calculate_insertion_cost_inline(route: Route, customer: Customer, position: int) -> float:
     """
-    Fast approximate insertion cost
-    Leaves room for MDS improvement
+    Smart insertion cost that minimizes waiting time + distance.
+    Estimates the waiting time that would be added by inserting at this position.
     """
 
     # Capacity
@@ -139,32 +139,55 @@ def calculate_insertion_cost_inline(route: Route, customer: Customer, position: 
         return float('inf')
 
     additional_distance = 0.0
+    estimated_waiting = 0.0
 
     if len(route.customer_ids) == 0:
+        # New route
         additional_distance = (
             distance(route.depot, customer) +
             distance(customer, route.depot)
         )
-        # Penalize new vehicle
-        additional_distance += 60.0
+        # Estimate waiting: if we arrive before ready_time, we wait
+        travel_time = distance(route.depot, customer)
+        arrival_time = route.departure_time + travel_time
+        estimated_waiting = max(0.0, customer.ready_time - arrival_time)
+        # Penalize new vehicle heavily
+        additional_distance += 100.0
 
     elif position == 0:
+        # Insert at beginning
         first = route.get_customer(0)
         additional_distance = (
             distance(route.depot, customer) +
             distance(customer, first) -
             distance(route.depot, first)
         )
+        # Estimate waiting: travel from depot, check if we arrive before ready_time
+        travel_time = distance(route.depot, customer)
+        arrival_time = route.departure_time + travel_time
+        estimated_waiting = max(0.0, customer.ready_time - arrival_time)
 
     elif position == len(route.customer_ids):
+        # Insert at end
         last = route.get_customer(-1)
         additional_distance = (
             distance(last, customer) +
             distance(customer, route.depot) -
             distance(last, route.depot)
         )
+        # Estimate waiting: use last customer's departure time
+        if len(route.arrival_times) > 0:
+            last_arrival = route.arrival_times[-1]
+            last_customer = last
+            last_departure = last_arrival + last_customer.service_time
+        else:
+            last_departure = route.departure_time
+        travel_time = distance(last, customer)
+        arrival_time = last_departure + travel_time
+        estimated_waiting = max(0.0, customer.ready_time - arrival_time)
 
     else:
+        # Insert in middle
         prev = route.get_customer(position - 1)
         nxt = route.get_customer(position)
         additional_distance = (
@@ -172,6 +195,25 @@ def calculate_insertion_cost_inline(route: Route, customer: Customer, position: 
             distance(customer, nxt) -
             distance(prev, nxt)
         )
+        # Estimate waiting: use previous customer's departure time
+        if position - 1 < len(route.arrival_times):
+            prev_arrival = route.arrival_times[position - 1]
+            prev_departure = prev_arrival + prev.service_time
+        else:
+            prev_departure = route.departure_time
+        travel_time = distance(prev, customer)
+        arrival_time = prev_departure + travel_time
+        estimated_waiting = max(0.0, customer.ready_time - arrival_time)
+        
+        # Also check if this insertion causes waiting for next customer
+        customer_departure = arrival_time + estimated_waiting + customer.service_time
+        next_travel = distance(customer, nxt)
+        next_arrival = customer_departure + next_travel
+        if position < len(route.arrival_times):
+            original_next_arrival = route.arrival_times[position]
+            if next_arrival > original_next_arrival:
+                # This insertion delays the next customer
+                estimated_waiting += (next_arrival - original_next_arrival) * 0.5  # Weighted penalty
 
     # Time-window tightness penalty
     tw_width = customer.due_date - customer.ready_time
@@ -184,4 +226,5 @@ def calculate_insertion_cost_inline(route: Route, customer: Customer, position: 
     if len(route.customer_ids) > 0:
         additional_distance -= 3.0
 
-    return additional_distance
+    # Total cost = distance + waiting (matching the objective function)
+    return additional_distance + estimated_waiting

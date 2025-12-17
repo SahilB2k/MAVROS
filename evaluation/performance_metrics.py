@@ -17,12 +17,21 @@ def print_solution_stats(solution: Solution, stats: Dict = None):
     
     if stats:
         print(f"\nAlgorithm Statistics:")
-        print(f"  Initial Cost (after MIH): {stats['initial_cost']:.2f}")
-        print(f"  Final Cost (after MDS): {stats['final_cost']:.2f}")
-        print(f"  Improvement: {stats['improvement']:.2f}%")
-        print(f"  MIH Time: {stats['mih_time']:.3f}s")
-        print(f"  MDS Time: {stats['mds_time']:.3f}s")
-        print(f"  Total Time: {stats['total_time']:.3f}s")
+        # Use get() with defaults to handle missing keys gracefully
+        initial_cost = stats.get('initial_cost', solution.total_cost)
+        final_cost = stats.get('final_cost', solution.total_cost)
+        improvement = stats.get('improvement', stats.get('improvement_pct', 0.0))
+        mih_time = stats.get('mih_time', 0.0)
+        mds_time = stats.get('mds_time', 0.0)
+        total_time = stats.get('total_time', 0.0)
+        
+        print(f"  Initial Cost (after MIH): {initial_cost:.2f}")
+        print(f"  Final Cost (after MDS): {final_cost:.2f}")
+        print(f"  Improvement: {improvement:.2f}%")
+        if mih_time > 0 or mds_time > 0 or total_time > 0:
+            print(f"  MIH Time: {mih_time:.3f}s")
+            print(f"  MDS Time: {mds_time:.3f}s")
+            print(f"  Total Time: {total_time:.3f}s")
     
     print(f"\nRoute Details:")
     for i, route in enumerate(solution.routes):

@@ -1,56 +1,44 @@
 """
 Relocate Operator - In-place customer relocation
 Memory: O(1) - array splice operation
+Now uses candidate list for best-position selection
 """
 
 from typing import Optional, List
 from core.data_structures import Route
+from operators.candidate_pruning import build_candidate_list_for_customer, get_candidate_insertion_positions
 
 
-def relocate_operator_inplace(route: Route,
-                              temp_arrival_buffer: Optional[List[float]] = None,
-                              max_relocations: int = 50) -> bool:
-    """
-    Try relocating customers to different positions in same route
-    
-    Uses early termination to limit computation
-    Modifies route IN PLACE
-    Returns True if improvement was made
-    
-    Memory: O(1) - no copies created
-    """
-    if len(route.customer_ids) < 2:
-        return False
-    
-    original_cost = route.total_cost
+def relocate_operator_inplace(route, temp_buffer, max_relocations=50):
     improved = False
-    relocation_count = 0
+    n = len(route.customer_ids)
     
-    # Try relocating each customer to each position
-    for from_pos in range(len(route.customer_ids)):
-        if relocation_count >= max_relocations:
-            break
+    # Iterate through each customer to find a better home for them
+    for i in range(n):
+        best_pos = -1
+        # Start with 0 because we only want moves that IMPROVE (delta < 0)
+        best_delta = -1e-6 
         
-        for to_pos in range(len(route.customer_ids)):
-            if from_pos == to_pos:
+        # Check all possible insertion points j
+        for j in range(n + 1):
+            # Skip redundant positions (already there)
+            if j == i or j == i + 1:
                 continue
+                
+            # Use the high-speed delta function
+            delta, feasible = route.get_move_delta_cost(i, i + 1, j)
             
-            if relocation_count >= max_relocations:
-                break
+            if feasible and delta < best_delta:
+                best_delta = delta
+                best_pos = j
+        
+        # Only perform the physical move if we found an improvement
+        if best_pos != -1:
+            route.relocate_inplace(i, best_pos)
+            # After a physical move, we must update the base cost
+            route.calculate_cost_inplace() 
+            improved = True
             
-            # Try relocation
-            if route.relocate_inplace(from_pos, to_pos):
-                if route.total_cost < original_cost:
-                    # Improvement found
-                    original_cost = route.total_cost
-                    improved = True
-                    # Continue searching from this improved state
-                else:
-                    # No improvement, revert
-                    route.relocate_inplace(to_pos, from_pos)  # Relocate back
-            
-            relocation_count += 1
-    
     return improved
 
 

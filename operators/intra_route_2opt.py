@@ -23,11 +23,9 @@ def intra_route_2opt_inplace(route: Route) -> bool:
     if n < 3:
         return False
 
-    # Ensure cost/schedule are in sync
+    # Ensure cost/schedule are in sync and use route.total_cost as objective
     route.calculate_cost_inplace()
-    old_distance = route.get_total_distance()
-    old_waiting = route.get_waiting_time()
-    old_obj = old_distance + old_waiting
+    old_obj = route.total_cost
 
     # Try all (i, j) pairs, first-improvement
     for i in range(n - 2):
@@ -58,9 +56,8 @@ def intra_route_2opt_inplace(route: Route) -> bool:
                 route.calculate_cost_inplace()
                 continue
 
-            new_distance = route.get_total_distance()
-            new_waiting = route.get_waiting_time()
-            new_obj = new_distance + new_waiting
+            # Objective is distance + waiting, which equals total_cost
+            new_obj = route.total_cost
 
             if new_obj < old_obj - 1e-6:
                 # First improving move accepted

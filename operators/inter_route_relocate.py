@@ -1,6 +1,7 @@
 from core.data_structures import Solution
 from core.data_structures import distance
 from operators.intra_route_2opt import intra_route_2opt_inplace
+from operators.candidate_pruning import build_candidate_list_for_customer, get_candidate_insertion_positions
 
 
 def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None) -> bool:
@@ -19,6 +20,12 @@ def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None) -> boo
     solution.update_cost()
     current_obj = solution.total_cost
 
+    # Build candidate lists for all customers (once, reused)
+    all_customers_list = []
+    for route in routes:
+        for cid in route.customer_ids:
+            all_customers_list.append(route.customers_lookup[cid])
+    
     # Prefer smaller routes as sources, but consider waiting contribution
     routes_sorted = sorted(routes, key=lambda r: len(r.customer_ids))
 
@@ -37,6 +44,9 @@ def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None) -> boo
                 continue
 
             customer = src.get_customer_by_id(cust_id)
+            
+            # Build candidate list for this customer (25 nearest neighbors)
+            candidate_neighbors = build_candidate_list_for_customer(customer, all_customers_list, k=25)
 
             for dst in routes:
                 if dst is src:
@@ -46,8 +56,10 @@ def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None) -> boo
                 if dst.current_load + customer.demand > dst.vehicle_capacity:
                     continue
 
-                # Try all insertion positions
-                for pos in range(len(dst.customer_ids) + 1):
+                # Candidate pruning: only try positions where predecessor is a nearest neighbor
+                candidate_positions = get_candidate_insertion_positions(dst, customer, candidate_neighbors, k=25)
+                
+                for pos in candidate_positions:
                     # --- backup state ---
                     src_ids_before = list(src.customer_ids)
                     dst_ids_before = list(dst.customer_ids)

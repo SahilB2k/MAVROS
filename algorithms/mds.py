@@ -1,9 +1,9 @@
 """
 Selective Multi-Directional Search (MDS)
-Now includes INTER-ROUTE vehicle reduction
+Optimized for Speed and Solution Quality (Vehicle Reduction focus)
 """
 
-from typing import List
+from typing import List, Set
 from core.data_structures import Solution, Route
 from evaluation.route_analyzer import identify_critical_route_indices
 from operators.inter_route_relocate import inter_route_relocate_inplace
@@ -13,100 +13,103 @@ from operators.temporal_shift import temporal_shift_operator_inplace
 from operators.swap import swap_operator_inplace
 from operators.relocate import relocate_operator_inplace
 from operators.lns_destroy_repair import lns_destroy_repair
+from operators.route_empty import route_empty_inplace
 
-
-MAX_MDS_ITERATIONS = 50
-TOP_N_CRITICAL_ROUTES = 5
-MAX_ROUTE_SIZE = 50
-EARLY_TERMINATION_THRESHOLD = 10
-
+# Global Configuration
+MAX_ROUTE_SIZE = 100
+EARLY_TERMINATION_THRESHOLD = 15
 
 def selective_mds(solution: Solution,
-                  max_iterations: int = MAX_MDS_ITERATIONS,
-                  top_n_critical: int = TOP_N_CRITICAL_ROUTES,
+                  max_iterations: int = 50,
+                  top_n_critical: int = 5,
                   early_termination: int = EARLY_TERMINATION_THRESHOLD) -> Solution:
     """
-    Two-phase MDS:
-      Phase 1 (feasibility / vehicle reduction):
-        - aggressively applies inter-route relocations to shrink the fleet,
-          guided by the penalised objective in Solution.update_cost().
-      Phase 2 (cost refinement):
-        - focuses on temporal shift, swap and relocate on critical routes.
+    Enhanced Three-Phase MDS:
+      Phase 1: Aggressive Fleet Reduction (Killing underfilled routes)
+      Phase 2: Global Perturbation (LNS to escape local optima)
+      Phase 3: Deep Route Refinement (Intra-route path optimization)
     """
 
-    max_route_size = max((len(r.customer_ids) for r in solution.routes), default=0)
-    buffer_size = max(MAX_ROUTE_SIZE, max_route_size + 10)
-    temp_arrival_buffer = [0.0] * buffer_size
+    # --- Setup & Adaptive Parameters ---
+    total_customers = sum(len(r.customer_ids) for r in solution.routes)
+    if total_customers > 100:
+        top_n_critical = 2  # Focus intensity on large instances
+        max_iterations = min(max_iterations, 30)
 
-    iteration = 0
-    no_improvement = 0
+    max_r_size = max((len(r.customer_ids) for r in solution.routes), default=0)
+    temp_arrival_buffer = [0.0] * (max_r_size + 20)
 
-    # --- Phase 1: feasibility / vehicle-count focused ---
-    while iteration < max_iterations and no_improvement < early_termination:
-        iteration += 1
-        improved = False
-
+    # --- Phase 1: Aggressive Vehicle Reduction ---
+    # This is the most important step for matching OR-Tools quality
+    improved_fleet = True
+    while improved_fleet:
+        improved_fleet = False
+        
+        # 1. Try inter-route relocation to shift load
         if inter_route_relocate_inplace(solution, temp_arrival_buffer):
-            improved = True
-
-        if improved:
-            no_improvement = 0
-        else:
-            no_improvement += 1
-
-        # stop early if we cannot reduce vehicles any further
-        if not improved:
+            solution.update_cost()
+            improved_fleet = True
+            
+        # 2. Specifically target 'killing' routes with < 6 customers
+        if route_empty_inplace(solution):
+            solution.update_cost()
+            improved_fleet = True
+            
+        if not improved_fleet:
             break
 
-    solution.update_cost()
+    # --- Phase 2: Escape Local Optima (LNS) ---
+    # Perform a few rounds of Destroy & Repair to reshuffle clusters
+    for i in range(3):
+        # Removal fraction 0.20 is a good balance for 100-customer instances
+        if lns_destroy_repair(solution, removal_fraction=0.20, random_seed=42 + i):
+            solution.update_cost()
 
-    # --- Global escape: one lightweight LNS destroy-repair before refinement ---
-    if lns_destroy_repair(solution, removal_fraction=0.15, fixed_remove_count=12, random_seed=42):
-        solution.update_cost()
-
-    # --- Phase 2: route-level cost refinement ---
+    # --- Phase 3: Deep Refinement ---
+    iteration = 0
     no_improvement = 0
+    
     while iteration < max_iterations and no_improvement < early_termination:
         iteration += 1
-        improved = False
+        global_improved = False
 
+        # Identify routes with high waiting time or high distance
         critical_indices = identify_critical_route_indices(
             solution, top_n=min(top_n_critical, len(solution.routes))
         )
 
         for route_idx in critical_indices:
             route = solution.routes[route_idx]
-
-            # 0. Intra-route 2-opt (polish ordering under time windows)
-            if intra_route_2opt_inplace(route):
-                solution.update_cost()
-                improved = True
+            if len(route.customer_ids) < 2:
                 continue
 
-            # 0.5. Or-Opt (1-3 segment relocate) for finer path cleanup
-            if or_opt_inplace(route, max_segment_len=3):
-                solution.update_cost()
-                improved = True
-                continue
+            route_improved = True
+            while route_improved:
+                route_improved = False
+                
+                # Operator 1: Intra-route 2-opt (Essential for path cleaning)
+                if intra_route_2opt_inplace(route):
+                    route_improved = True
+                
+                # Operator 2: Or-Opt (Segment relocation 1-3)
+                # Very effective at fixing time-window alignment
+                elif or_opt_inplace(route, max_segment_len=3):
+                    route_improved = True
+                
+                # Operator 3: Temporal Shift (Adjust depot departure)
+                elif temporal_shift_operator_inplace(route, temp_arrival_buffer):
+                    route_improved = True
+                
+                # Operator 4: Best-Fit Relocate (Micro-optimizing positions)
+                elif relocate_operator_inplace(route, temp_arrival_buffer, max_relocations=30):
+                    route_improved = True
 
-            # 1. Temporal shift
-            if temporal_shift_operator_inplace(route, temp_arrival_buffer):
-                solution.update_cost()
-                improved = True
-                continue
+                if route_improved:
+                    global_improved = True
+                    # Update only the current route and penalized solution cost
+                    solution.update_cost() 
 
-            # 2. Swap
-            if swap_operator_inplace(route, temp_arrival_buffer, max_swaps=20):
-                solution.update_cost()
-                improved = True
-                continue
-
-            # 3. Intra-route relocate
-            if relocate_operator_inplace(route, temp_arrival_buffer, max_relocations=20):
-                solution.update_cost()
-                improved = True
-
-        if improved:
+        if global_improved:
             no_improvement = 0
         else:
             no_improvement += 1
