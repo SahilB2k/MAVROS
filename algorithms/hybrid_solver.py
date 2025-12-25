@@ -13,10 +13,10 @@ def solve_vrptw(
     depot: Customer,
     customers: List[Customer],
     vehicle_capacity: int,
-    candidate_ratio: float = 0.3,
+    candidate_ratio: float = 0.5,
     min_candidates: int = 5,
-    max_mds_iterations: int = 50,
-    top_n_critical: int = 5,
+    max_mds_iterations: int = 150,
+    top_n_critical: int = 10,
     random_seed: Optional[int] = None
 ) -> Solution:
     """
@@ -58,8 +58,8 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
         depot=depot, 
         customers=customers, 
         vehicle_capacity=vehicle_capacity,
-        candidate_ratio=0.3, 
-        min_candidates=5, 
+        candidate_ratio=0.5, 
+        min_candidates=candidate_k if candidate_k else 5, 
         random_seed=42
     )
     
@@ -75,7 +75,7 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
     # PHASE 2: Multi-Pass Improvement (MDS)
     # ------------------------------------------------------------
     num_passes = 3 if n <= 50 else 5
-    total_iters = max_iterations if max_iterations else 100
+    total_iters = max_iterations if max_iterations else 80
     iters_per_pass = total_iters // num_passes
 
     for pass_num in range(num_passes):

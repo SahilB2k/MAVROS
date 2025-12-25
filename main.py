@@ -78,7 +78,7 @@ def run_experiment(instance_file: str, max_customers: int = None,
     
     stats.update({
         'num_customers': len(customers),
-        'total_cost': solution.total_cost,
+        'total_cost': solution.total_base_cost,  # Use actual routing cost, not penalized
         'num_vehicles': solution.num_vehicles,
         'num_routes': solution.num_vehicles,  # Alias for compatibility
         'solve_time': solve_time,

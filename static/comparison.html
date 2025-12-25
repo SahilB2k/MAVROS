@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard - VRPTW Solver Performance</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            line-height: 1.6;
+        }
+
+        .dashboard-container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+        }
+
+        .dashboard-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #6366F1, #06B6D4, #F97316);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .dashboard-subtitle {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .metric-box {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.4));
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .metric-box:hover {
+            transform: translateY(-5px);
+            border-color: rgba(99, 102, 241, 0.6);
+            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3);
+        }
+
+        .metric-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #6366F1, #06B6D4);
+        }
+
+        .metric-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value.positive {
+            color: #10b981;
+        }
+
+        .metric-value.negative {
+            color: #f59e0b;
+        }
+
+        .metric-value.neutral {
+            color: #6366F1;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .chart-panel {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .chart-panel.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .chart-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .chart-badge {
+            padding: 0.5rem 1rem;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #6366F1;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 350px !important;
+            border-radius: 12px;
+        }
+
+        .insights-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .insight-card {
+            background: rgba(30, 41, 59, 0.6);
+            border-left: 4px solid;
+            border-radius: 12px;
+            padding: 2rem;
+        }
+
+        .insight-card.strengths {
+            border-left-color: #10b981;
+        }
+
+        .insight-card.tradeoffs {
+            border-left-color: #f59e0b;
+        }
+
+        .insight-card.recommendations {
+            border-left-color: #6366F1;
+        }
+
+        .insight-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .insight-list {
+            list-style: none;
+        }
+
+        .insight-list li {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            font-size: 0.95rem;
+            color: #cbd5e1;
+        }
+
+        .insight-list li:last-child {
+            border-bottom: none;
+        }
+
+        .insight-list strong {
+            color: #f1f5f9;
+            font-weight: 600;
+        }
+
+        .comparison-table {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 20px;
+            padding: 2rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        th {
+            background: rgba(99, 102, 241, 0.1);
+            font-weight: 700;
+            color: #6366F1;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+
+        td {
+            color: #cbd5e1;
+        }
+
+        .value-custom {
+            color: #6366F1;
+            font-weight: 700;
+        }
+
+        .value-ortools {
+            color: #06B6D4;
+            font-weight: 700;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #6366F1;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .back-link:hover {
+            background: rgba(99, 102, 241, 0.25);
+            transform: translateX(-5px);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <a href="/" class="back-link">← Back to Solver</a>
+
+        <div class="dashboard-header">
+            <h1 class="dashboard-title">Performance Analytics Dashboard</h1>
+            <p class="dashboard-subtitle">Custom Hybrid MIH-MDS Solver vs Google OR-Tools • C102 Instance (100
+                Customers)</p>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="metrics-row">
+            <div class="metric-box">
+                <div class="metric-icon">🎯</div>
+                <div class="metric-value negative">+46.1%</div>
+                <div class="metric-label">Quality Gap</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-icon">⚡</div>
+                <div class="metric-value positive">7.2% Faster</div>
+                <div class="metric-label">Speed Advantage</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-icon">💾</div>
+                <div class="metric-value positive">94.7% Less</div>
+                <div class="metric-label">Memory Usage</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-icon">🚚</div>
+                <div class="metric-value neutral">13 vs 12</div>
+                <div class="metric-label">Fleet Size</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-panel">
+                <div class="chart-header">
+                    <h3 class="chart-title">📊 Performance Metrics</h3>
+                    <span class="chart-badge">Bar Chart</span>
+                </div>
+                <canvas id="barChart"></canvas>
+            </div>
+
+            <div class="chart-panel">
+                <div class="chart-header">
+                    <h3 class="chart-title">📈 Gap Analysis</h3>
+                    <span class="chart-badge">Horizontal Bars</span>
+                </div>
+                <canvas id="gapChart"></canvas>
+            </div>
+
+            <div class="chart-panel full-width">
+                <div class="chart-header">
+                    <h3 class="chart-title">⚖️ Cost vs Speed Trade-off</h3>
+                    <span class="chart-badge">Scatter Plot</span>
+                </div>
+                <canvas id="scatterChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Insights -->
+        <div class="insights-section">
+            <div class="insight-card strengths">
+                <h3 class="insight-title">✅ Key Strengths</h3>
+                <ul class="insight-list">
+                    <li><strong>Speed:</strong> 7% faster execution (27.85s vs 30s)</li>
+                    <li><strong>Memory:</strong> 94.7% less RAM usage (8MB vs 150MB)</li>
+                    <li><strong>Scalability:</strong> Efficient for large instances</li>
+                    <li><strong>Deployment:</strong> Lightweight & portable</li>
+                </ul>
+            </div>
+
+            <div class="insight-card tradeoffs">
+                <h3 class="insight-title">⚠️ Trade-offs</h3>
+                <ul class="insight-list">
+                    <li><strong>Cost:</strong> 46% higher routing cost</li>
+                    <li><strong>Fleet:</strong> Uses 1 additional vehicle</li>
+                    <li><strong>Optimality:</strong> Prioritizes speed over quality</li>
+                    <li><strong>Use Case:</strong> Best for time-critical scenarios</li>
+                </ul>
+            </div>
+
+            <div class="insight-card recommendations">
+                <h3 class="insight-title">💡 Recommendations</h3>
+                <ul class="insight-list">
+                    <li><strong>Real-time:</strong> Use custom solver for instant results</li>
+                    <li><strong>Offline:</strong> Use OR-Tools for optimal planning</li>
+                    <li><strong>Hybrid:</strong> Combine both for best results</li>
+                    <li><strong>Resource-limited:</strong> Custom solver ideal</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="comparison-table">
+            <h3 class="chart-title" style="margin-bottom: 1.5rem;">🔧 Technical Comparison</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Custom Solver</th>
+                        <th>OR-Tools</th>
+                        <th>Difference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Total Cost</td>
+                        <td class="value-custom">2552.82</td>
+                        <td class="value-ortools">1747.00</td>
+                        <td>+805.82 (+46.1%)</td>
+                    </tr>
+                    <tr>
+                        <td>Number of Vehicles</td>
+                        <td class="value-custom">13</td>
+                        <td class="value-ortools">12</td>
+                        <td>+1 (+8.3%)</td>
+                    </tr>
+                    <tr>
+                        <td>Solve Time (seconds)</td>
+                        <td class="value-custom">27.85</td>
+                        <td class="value-ortools">30.00</td>
+                        <td>-2.15 (-7.2%)</td>
+                    </tr>
+                    <tr>
+                        <td>Memory Usage (MB)</td>
+                        <td class="value-custom">~8</td>
+                        <td class="value-ortools">~150</td>
+                        <td>-142 (-94.7%)</td>
+                    </tr>
+                    <tr>
+                        <td>Algorithm Type</td>
+                        <td class="value-custom">Hybrid MIH-MDS + SA</td>
+                        <td class="value-ortools">Constraint Programming</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>Implementation</td>
+                        <td class="value-custom">Python (Pure)</td>
+                        <td class="value-ortools">C++ (Bindings)</td>
+                        <td>-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="comparison.js"></script>
+</body>
+
+</html>

@@ -11,7 +11,8 @@ def print_solution_stats(solution: Solution, stats: Dict = None):
     """
     Print solution statistics
     """
-    print(f"Total Cost: {solution.total_cost:.2f}")
+    # Display actual routing cost (base cost), not the penalized cost used internally
+    print(f"Total Cost: {solution.total_base_cost:.2f}")
     print(f"Number of Vehicles: {solution.num_vehicles}")
     print(f"Feasible: {solution.is_feasible()}")
     

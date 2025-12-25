@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RouteFlow - Intelligent Route Optimization</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+        <div class="grid-lines"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" />
+                        <path d="M8 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </div>
+                <div>
+                    <h1>RouteFlow</h1>
+                    <p class="tagline">Intelligent Route Optimization</p>
+                </div>
+            </div>
+            <nav class="header-nav">
+                <a href="/comparison" class="nav-link">📊 Performance Comparison</a>
+                <a href="#" class="nav-link">Documentation</a>
+                <a href="#" class="nav-link">API</a>
+                <button class="btn-secondary">Learn More</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Left Panel: Configuration -->
+            <div class="config-panel">
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h2 class="panel-title">Configuration</h2>
+                        <span class="panel-badge">v1.0</span>
+                    </div>
+
+                    <!-- Instance Selection -->
+                    <div class="form-section">
+                        <label class="form-label">
+                            <span class="label-icon">📊</span>
+                            <span>Problem Instance</span>
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="instance-select" class="input-field">
+                                <option value="data/c102.txt">C102 - Clustered Layout</option>
+                                <option value="data/c101.txt">C101 - Clustered Layout</option>
+                                <option value="data/r101.txt">R101 - Random Distribution</option>
+                                <option value="data/rc101.txt">RC101 - Mixed Pattern</option>
+                            </select>
+                            <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M6 9l6 6 6-6" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Customer Count Slider -->
+                    <div class="form-section">
+                        <label class="form-label">
+                            <span class="label-icon">👥</span>
+                            <span>Number of Customers</span>
+                            <span id="customer-display" class="value-display">100</span>
+                        </label>
+                        <input type="range" id="customer-count" class="slider-input" value="100" min="25" max="100"
+                            step="25">
+                        <div class="slider-markers">
+                            <span>25</span>
+                            <span>50</span>
+                            <span>75</span>
+                            <span>100</span>
+                        </div>
+                    </div>
+
+                    <!-- Solve Button -->
+                    <button id="solve-btn" class="btn-primary btn-lg">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                        <span>Solve Route</span>
+                        <span class="btn-indicator"></span>
+                    </button>
+
+                    <!-- Stats Divider -->
+                    <div class="divider"></div>
+
+                    <!-- Results Panel -->
+                    <div id="results-panel" class="results-section hidden">
+                        <h3 class="results-header">Solution Results</h3>
+
+                        <div class="stats-grid">
+                            <div class="stat-card stat-primary">
+                                <div class="stat-number" id="total-cost">-</div>
+                                <div class="stat-label">Total Cost</div>
+                            </div>
+
+                            <div class="stat-card stat-accent">
+                                <div class="stat-number" id="num-vehicles">-</div>
+                                <div class="stat-label">Vehicles</div>
+                            </div>
+
+                            <div class="stat-card stat-success">
+                                <div class="stat-number" id="solve-time">-</div>
+                                <div class="stat-label">Solve Time</div>
+                            </div>
+
+                            <div class="stat-card stat-warning">
+                                <div id="feasible" class="stat-badge">-</div>
+                                <div class="stat-label">Status</div>
+                            </div>
+                        </div>
+
+                        <!-- Routes List -->
+                        <div class="routes-panel">
+                            <h4 class="routes-title">Route Details</h4>
+                            <div id="routes-list" class="routes-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Chart -->
+                    <div id="comparison-section" class="comparison-section hidden">
+                        <h4 class="comparison-title">Performance Comparison</h4>
+                        <p class="comparison-subtitle">Custom Solver vs OR-Tools Baseline</p>
+
+                        <div class="chart-container">
+                            <canvas id="comparison-chart" class="comparison-chart"></canvas>
+                        </div>
+
+                        <div class="comparison-stats">
+                            <div class="comparison-stat">
+                                <span class="stat-icon">💰</span>
+                                <div>
+                                    <div class="stat-label">Cost Gap</div>
+                                    <div id="cost-gap" class="stat-value">-</div>
+                                </div>
+                            </div>
+                            <div class="comparison-stat">
+                                <span class="stat-icon">⚡</span>
+                                <div>
+                                    <div class="stat-label">Speed Advantage</div>
+                                    <div id="speed-advantage" class="stat-value">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Visualization -->
+            <div class="visualization-panel">
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h2 class="panel-title">Route Visualization</h2>
+                        <div class="panel-controls">
+                            <button class="btn-icon-small" title="Reset View">⟲</button>
+                            <button class="btn-icon-small" title="Download">⬇</button>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="loading-state" class="loading-overlay">
+                        <div class="loading-content">
+                            <div class="loading-spinner">
+                                <div class="spinner"></div>
+                                <div class="spinner"></div>
+                                <div class="spinner"></div>
+                            </div>
+                            <p class="loading-text">Optimizing routes...</p>
+                            <div class="progress-container">
+                                <div class="progress-bar"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tooltip for route segments -->
+                    <div id="route-tooltip" class="route-tooltip hidden"></div>
+
+                    <!-- Canvas -->
+                    <canvas id="route-canvas" class="route-canvas"></canvas>
+
+                    <!-- Legend -->
+                    <div id="canvas-legend" class="canvas-legend hidden"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p class="footer-text">🚀 Advanced VRPTW Solver • Hybrid Optimization Algorithm • Real-time Route
+                    Visualization</p>
+                <p class="footer-sub">Powered by Next-Gen Route Optimization Engine</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
