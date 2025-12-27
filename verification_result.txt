@@ -1,4 +1,0 @@
-Total Cost: 2552.82
-Vehicles: 13
-Time: 27.85s
-Feasible: True

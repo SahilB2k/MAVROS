@@ -1,6 +1,8 @@
 """
-Flask API Server for VRPTW Solver
-Provides REST endpoints for solving VRPTW instances
+Flask Application Server for VRPTW Visualization
+- Serves the frontend UI for visualizing routes.
+- Provides API endpoints to run the solver and retrieve results.
+- Bridges the Python solver with the JavaScript/React frontend.
 """
 
 from flask import Flask, request, jsonify, send_from_directory

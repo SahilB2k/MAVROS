@@ -1,5 +1,7 @@
 """
-Quick benchmark to establish baseline performance
+Baseline Benchmark Script
+- Establishes a performance baseline for a small instance (C101.25).
+- Useful for quick regression testing before running full benchmarks.
 """
 import time
 from core.solomon_loader import load_solomon_subset

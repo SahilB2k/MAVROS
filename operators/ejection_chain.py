@@ -1,7 +1,8 @@
 """
-Ejection Chain Reduction Operator - Depth-3 Variable Search
-Upgraded from Depth-2 to Depth-3 for stubborn vehicle elimination
-Maintains O(N²) complexity through smart pruning
+Ejection Chain Operator (Depth-2)
+- Critical for Fleet Reduction (13 -> 12 vehicles).
+- Moves a customer from Target Route to Route A, ejecting a victim from A to B.
+- Uses O(N^2) optimizations: Geometric Pruning and Smart Victim Selection.
 """
 
 from core.data_structures import Solution, Route
