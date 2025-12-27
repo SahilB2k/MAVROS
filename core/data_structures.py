@@ -289,10 +289,11 @@ class Route:
         avg_seg_y = (seg_start.y + seg_end.y) / 2
         dist_to_insert = math.sqrt((avg_seg_x - insert_neighbor.x)**2 + (avg_seg_y - insert_neighbor.y)**2)
         
-        # If moving segment far away (>2x average route span), skip
+        # If moving segment far away (>3x average route span), skip
+        # RELAXED: 2.5 -> 3.0 to find more moves (leveraging speed budget)
         if n > 0 and self.bbox[2] - self.bbox[0] > 0:
             avg_route_span = ((self.bbox[2] - self.bbox[0]) + (self.bbox[3] - self.bbox[1])) / 2
-            if dist_to_insert > 2.5 * avg_route_span:
+            if dist_to_insert > 3.0 * avg_route_span:
                 return 0.0, False
 
         # Create virtual sequence for evaluation
@@ -358,13 +359,14 @@ class Route:
         if self.current_load + customer.demand > self.vehicle_capacity:
             return 0.0, False
 
-        # OPTIMIZATION: Distance-based pre-filtering
+        # OPTIMIZATION: Distance-based pre-filtering (RELAXED)
         if position > 0:
             prev_cust = self.get_customer(position - 1)
             dist_to_prev = distance(prev_cust, customer)
             if self.bbox[2] - self.bbox[0] > 0:
                 avg_span = ((self.bbox[2] - self.bbox[0]) + (self.bbox[3] - self.bbox[1])) / 2
-                if dist_to_prev > 2.0 * avg_span:
+                # RELAXED: 2.0 -> 2.5 to explore more insertion options
+                if dist_to_prev > 2.5 * avg_span:
                     return 0.0, False
 
         new_ids = list(self.customer_ids)

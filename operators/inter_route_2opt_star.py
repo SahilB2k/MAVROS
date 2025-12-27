@@ -1,6 +1,6 @@
 """
-Inter-Route 2-Opt* Operator - O(N²) Optimized
-Smart filtering + adaptive sampling for 3x speedup
+Inter-Route 2-Opt* Operator - Demand-Based Sampling
+Improved cut point selection for better route merging
 """
 
 from core.data_structures import Solution
@@ -9,9 +9,9 @@ import random
 
 def inter_route_2opt_star(solution: Solution, max_attempts: int = 500) -> bool:
     """
-    Optimized 2-Opt* with:
+    Optimized 2-Opt* with DEMAND-BASED cut sampling:
     - Geometric pruning (bbox overlap check)
-    - Adaptive cut point sampling (not exhaustive)
+    - Cut points selected where load is 40%, 60%, 80%, 95% of capacity
     - Early capacity filtering
     - Best-improvement strategy
     
@@ -34,8 +34,8 @@ def inter_route_2opt_star(solution: Solution, max_attempts: int = 500) -> bool:
             if len(route_a.customer_ids) < 1 or len(route_b.customer_ids) < 1:
                 continue
             
-            # Geometric pruning: Skip non-overlapping routes
-            if not route_a.overlaps_with(route_b, buffer=25.0):
+            # Geometric pruning with slightly relaxed buffer
+            if not route_a.overlaps_with(route_b, buffer=30.0):  # Increased from 25.0
                 continue
             
             avg_cost = (route_a.total_cost / max(1, len(route_a.customer_ids)) +
@@ -54,28 +54,28 @@ def inter_route_2opt_star(solution: Solution, max_attempts: int = 500) -> bool:
         
         old_cost = route_a.total_cost + route_b.total_cost
         
-        # OPTIMIZATION: Adaptive sampling strategy
-        # For large routes (>15 customers), sample cut points instead of exhaustive search
+        # NEW: DEMAND-BASED cut point selection
         len_a = len(route_a.customer_ids)
         len_b = len(route_b.customer_ids)
         
-        if len_a > 15 and len_b > 15:
-            # Sample strategic cut points: early (20%), mid (40%), late (70%)
-            cuts_a = [max(1, int(len_a * p)) for p in [0.2, 0.4, 0.6, 0.8]]
-            cuts_b = [max(1, int(len_b * p)) for p in [0.2, 0.4, 0.6, 0.8]]
-        elif len_a > 15:
-            cuts_a = [max(1, int(len_a * p)) for p in [0.25, 0.5, 0.75]]
-            cuts_b = list(range(1, len_b))
-        elif len_b > 15:
-            cuts_a = list(range(1, len_a))
-            cuts_b = [max(1, int(len_b * p)) for p in [0.25, 0.5, 0.75]]
-        else:
-            # Small routes: exhaustive search
-            cuts_a = list(range(1, len_a))
-            cuts_b = list(range(1, len_b))
+        cuts_a = _get_demand_based_cuts(route_a)
+        cuts_b = _get_demand_based_cuts(route_b)
+        
+        # Fallback to position-based if demand-based gives too few
+        if len(cuts_a) < 3:
+            if len_a > 15:
+                cuts_a = [max(1, int(len_a * p)) for p in [0.2, 0.4, 0.6, 0.8]]
+            else:
+                cuts_a = list(range(1, min(len_a, 8)))  # Limit to first 8 for speed
+        
+        if len(cuts_b) < 3:
+            if len_b > 15:
+                cuts_b = [max(1, int(len_b * p)) for p in [0.2, 0.4, 0.6, 0.8]]
+            else:
+                cuts_b = list(range(1, min(len_b, 8)))
         
         pair_attempts = 0
-        max_pair_attempts = min(50, len(cuts_a) * len(cuts_b))
+        max_pair_attempts = min(60, len(cuts_a) * len(cuts_b))  # Increased from 50
         
         for cut_a in cuts_a:
             for cut_b in cuts_b:
@@ -89,7 +89,7 @@ def inter_route_2opt_star(solution: Solution, max_attempts: int = 500) -> bool:
                 tail_a = route_a.customer_ids[cut_a:]
                 tail_b = route_b.customer_ids[cut_b:]
                 
-                # OPTIMIZATION: Quick capacity pre-filter
+                # Quick capacity pre-filter
                 tail_a_demand = sum(route_a.customers_lookup[cid].demand for cid in tail_a)
                 tail_b_demand = sum(route_b.customers_lookup[cid].demand for cid in tail_b)
                 
@@ -151,3 +151,39 @@ def inter_route_2opt_star(solution: Solution, max_attempts: int = 500) -> bool:
         return True
     
     return False
+
+
+def _get_demand_based_cuts(route) -> list:
+    """
+    NEW: Select cut points based on cumulative load percentages.
+    
+    This finds "natural" cut points where the vehicle is 40%, 60%, 80%, 95% full.
+    These cuts are more likely to produce balanced routes after swap.
+    
+    Returns list of customer indices where cuts should be made.
+    """
+    if not route.customer_ids:
+        return []
+    
+    capacity = route.vehicle_capacity
+    target_loads = [0.4 * capacity, 0.6 * capacity, 0.8 * capacity, 0.95 * capacity]
+    
+    cuts = [1]  # Always include first position
+    cumulative_load = 0
+    customers_lookup = route.customers_lookup
+    
+    for i, cid in enumerate(route.customer_ids):
+        customer = customers_lookup[cid]
+        cumulative_load += customer.demand
+        
+        # Check if we've crossed a target load threshold
+        for target in target_loads:
+            if cumulative_load >= target and i + 1 not in cuts:
+                cuts.append(i + 1)
+                break
+    
+    # Always include last position
+    if len(route.customer_ids) not in cuts:
+        cuts.append(len(route.customer_ids))
+    
+    return sorted(set(cuts))
