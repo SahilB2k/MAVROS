@@ -14,7 +14,12 @@ from core.data_structures import Route
 
 def intra_route_2opt_inplace(route: Route) -> bool:
     """
-    Apply a FIRST-IMPROVEMENT 2-opt move within a single route.
+    Apply a BEST-IMPROVEMENT 2-opt move within a single route with limited lookahead.
+    
+    Optimized version:
+    - Best-improvement with lookahead limit (check up to 30 moves, take best)
+    - Skip obviously infeasible moves early
+    - More efficient than pure first-improvement
 
     Returns:
         True if an improving move was applied, False otherwise.
@@ -27,7 +32,12 @@ def intra_route_2opt_inplace(route: Route) -> bool:
     route.calculate_cost_inplace()
     old_obj = route.total_cost
 
-    # Try all (i, j) pairs, first-improvement
+    best_improvement = 0.0
+    best_move = None
+    moves_checked = 0
+    max_moves_to_check = 30  # Limited lookahead for speed
+
+    # Try all (i, j) pairs, best-improvement with limited lookahead
     for i in range(n - 2):
         for j in range(i + 1, n):
             # In-place segment reversal [i, j]
@@ -58,10 +68,27 @@ def intra_route_2opt_inplace(route: Route) -> bool:
 
             # Objective is distance + waiting, which equals total_cost
             new_obj = route.total_cost
+            improvement = old_obj - new_obj
 
-            if new_obj < old_obj - 1e-6:
-                # First improving move accepted
-                return True
+            if improvement > best_improvement + 1e-6:
+                # Found better move
+                best_improvement = improvement
+                best_move = (i, j)
+                moves_checked += 1
+                
+                # Early exit if we found a very good move or checked enough
+                if best_improvement > 10.0 or moves_checked >= max_moves_to_check:
+                    # Roll back this trial
+                    left, right = i, j
+                    while left < right:
+                        route.customer_ids[left], route.customer_ids[right] = (
+                            route.customer_ids[right],
+                            route.customer_ids[left],
+                        )
+                        left += 1
+                        right -= 1
+                    route.calculate_cost_inplace()
+                    break
 
             # Not improving: roll back
             left, right = i, j
@@ -73,6 +100,23 @@ def intra_route_2opt_inplace(route: Route) -> bool:
                 left += 1
                 right -= 1
             route.calculate_cost_inplace()
+        
+        if best_move and (best_improvement > 10.0 or moves_checked >= max_moves_to_check):
+            break
+
+    # Apply best move if found
+    if best_move is not None:
+        i, j = best_move
+        left, right = i, j
+        while left < right:
+            route.customer_ids[left], route.customer_ids[right] = (
+                route.customer_ids[right],
+                route.customer_ids[left],
+            )
+            left += 1
+            right -= 1
+        route.calculate_cost_inplace()
+        return True
 
     return False
 

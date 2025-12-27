@@ -1,0 +1,430 @@
+Testing ENHANCED solver on C102 (100 customers)...
+============================================================
+DEBUG: Data Loader complete. Found 1 depot and 100 customers.
+DEBUG [Checkpoint 1]: MIH constructed solution with 100/100 customers.
+DEBUG: Fleet Reduction Pass 1. Vehicles: 43
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 2. Vehicles: 41
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 3. Vehicles: 39
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 4. Vehicles: 38
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 5. Vehicles: 37
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 6. Vehicles: 36
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 7. Vehicles: 35
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 8. Vehicles: 34
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 9. Vehicles: 33
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 10. Vehicles: 32
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 11. Vehicles: 31
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 12. Vehicles: 30
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 13. Vehicles: 29
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 14. Vehicles: 28
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 15. Vehicles: 27
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 16. Vehicles: 26
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 17. Vehicles: 25
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 18. Vehicles: 25
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 19. Vehicles: 24
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 20. Vehicles: 24
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 21. Vehicles: 23
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 22. Vehicles: 23
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 23. Vehicles: 22
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 24. Vehicles: 22
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 25. Vehicles: 21
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 26. Vehicles: 21
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 27. Vehicles: 20
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 28. Vehicles: 20
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 29. Vehicles: 19
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 30. Vehicles: 19
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 31. Vehicles: 18
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 32. Vehicles: 18
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 33. Vehicles: 17
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 34. Vehicles: 17
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 35. Vehicles: 16
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 36. Vehicles: 16
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 37. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 38. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 39. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 40. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 41. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 42. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 43. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 44. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 45. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 46. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 47. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 48. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 49. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 50. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Starting MDS loop. Initial cost: 53557.87
+DEBUG [Checkpoint 3.0]: Merge pass (threshold=0.7) finished with 100/100 customers, 15 vehicles (was 15).
+DEBUG: Fleet Reduction Pass 1. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 2. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 3. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 4. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 5. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 6. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 7. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 8. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 9. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 10. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 11. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 12. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 13. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 14. Vehicles: 15
+DEBUG: Fleet Reduction Pass 15. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 16. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 17. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 18. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 19. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 20. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 21. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 22. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 23. Vehicles: 15
+DEBUG: Fleet Reduction Pass 24. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 25. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 26. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 27. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 28. Vehicles: 15
+DEBUG: Fleet Reduction Pass 29. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 30. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 31. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 32. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 33. Vehicles: 15
+DEBUG: Fleet Reduction Pass 34. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 35. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 36. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 37. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 38. Vehicles: 15
+DEBUG: Fleet Reduction Pass 39. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 40. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 41. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 42. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 43. Vehicles: 15
+DEBUG: Fleet Reduction Pass 44. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 45. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 46. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 47. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 48. Vehicles: 15
+DEBUG: Fleet Reduction Pass 49. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 50. Vehicles: 15
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Starting MDS loop. Initial cost: 51629.85
+DEBUG [Checkpoint 3.1]: Merge pass (threshold=0.6) finished with 100/100 customers, 13 vehicles (was 13).
+DEBUG: Fleet Reduction Pass 1. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 2. Vehicles: 13
+DEBUG: Fleet Reduction Pass 3. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 4. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 5. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 6. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 7. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 8. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 9. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 10. Vehicles: 13
+DEBUG: Fleet Reduction Pass 11. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 12. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 13. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 14. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 15. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 16. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 17. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 18. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 19. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 20. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 21. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 22. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 23. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 24. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 25. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 26. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 27. Vehicles: 13
+DEBUG: Fleet Reduction Pass 28. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 29. Vehicles: 13
+DEBUG: Fleet Reduction Pass 30. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 31. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 32. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 33. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 34. Vehicles: 13
+DEBUG: Fleet Reduction Pass 35. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 36. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 37. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 38. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 39. Vehicles: 13
+DEBUG: Fleet Reduction Pass 40. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 41. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 42. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 43. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 44. Vehicles: 13
+DEBUG: Fleet Reduction Pass 45. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 46. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 47. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 48. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 49. Vehicles: 13
+DEBUG: Fleet Reduction Pass 50. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Starting MDS loop. Initial cost: 45846.54
+DEBUG [Checkpoint 3.2]: Merge pass (threshold=0.5) finished with 100/100 customers, 13 vehicles (was 13).
+DEBUG: Fleet Reduction Pass 1. Vehicles: 13
+DEBUG: Fleet Reduction Pass 2. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 3. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 4. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 5. Vehicles: 13
+DEBUG: Fleet Reduction Pass 6. Vehicles: 13
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 7. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 8. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 9. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 10. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 11. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 12. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 13. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 14. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 15. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 16. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 17. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 18. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 19. Vehicles: 12
+DEBUG: Fleet Reduction Pass 20. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 21. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 22. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 23. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 24. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 25. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 26. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 27. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 28. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 29. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 30. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 31. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 32. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 33. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 34. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 35. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 36. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 37. Vehicles: 12
+DEBUG: Fleet Reduction Pass 38. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 39. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 40. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 41. Vehicles: 12
+DEBUG: Fleet Reduction Pass 42. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 43. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 44. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 45. Vehicles: 12
+DEBUG: Fleet Reduction Pass 46. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 47. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 48. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 49. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 50. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Starting MDS loop. Initial cost: 42647.31
+DEBUG [Checkpoint 3.3]: Merge pass (threshold=0.4) finished with 100/100 customers, 12 vehicles (was 12).
+DEBUG: Fleet Reduction Pass 1. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 2. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 3. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 4. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 5. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 6. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 7. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 8. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 9. Vehicles: 12
+  DEBUG: Inter-route relocate improved solution.
+DEBUG: Fleet Reduction Pass 10. Vehicles: 12
+DEBUG: Fleet Reduction Pass 11. Vehicles: 12
+DEBUG: Starting MDS loop. Initial cost: 41216.62
+DEBUG [Checkpoint 3.4]: Merge pass (threshold=0.3) finished with 100/100 customers, 11 vehicles (was 11).
+
+DEBUG [Phase 3]: Controlled fleet reduction (limit 5% cost increase/step)...
+  Starting: 11 vehicles, cost=2095.31
+  Final: 11 vehicles, cost=2095.31
+
+* SUCCESS: All 100/100 customers served. *
+
+============================================================
+ENHANCED OPTIMIZATION RESULTS
+============================================================
+Cost: 2095.31
+Vehicles: 11
+Time: 37.42s
+Improvement from initial: 85.49%
+============================================================
+
+Target: Cost < 1800, Vehicles <= 12 (to match OR-Tools)

@@ -194,12 +194,41 @@ def lns_destroy_repair(solution: Solution,
 
     for cid in sorted_to_remove:
         inserted = False
-        # Try existing routes first using best-fit
-        for r in solution.routes:
-            if _try_insert_customer_best_fit(r, cid):
-                touched_routes.add(id(r))
+        
+        # Find GLOBAL best insertion across all routes
+        best_route_idx = None
+        best_pos = None
+        min_insertion_cost = float('inf')
+        
+        # Check all existing routes
+        for r_idx, r in enumerate(solution.routes):
+            # Find best position within this route
+            # We need to expose the cost calculation from `_try_insert_customer_best_fit` logic
+            # but without modifying the route yet.
+            
+            # Helper logic similar to _try_insert_customer_best_fit but returns cost
+            r_best_cost = float('inf')
+            r_best_pos = None
+            
+            for pos in range(len(r.customer_ids) + 1):
+                cost = _calculate_insertion_cost(r, cid, pos)
+                if cost < r_best_cost:
+                    r_best_cost = cost
+                    r_best_pos = pos
+            
+            # Compare with global best
+            if r_best_cost < min_insertion_cost:
+                min_insertion_cost = r_best_cost
+                best_route_idx = r_idx
+                best_pos = r_best_pos
+
+        # Apply best insertion if feasible
+        if best_route_idx is not None and min_insertion_cost != float('inf'):
+            route = solution.routes[best_route_idx]
+            if route.insert_inplace(cid, best_pos):
+                touched_routes.add(id(route))
                 inserted = True
-                break
+        
         if not inserted:
             # Create new route if needed - ALWAYS ensure customer is restored
             new_route = Route(depot, capacity, customers_lookup)

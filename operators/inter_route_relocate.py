@@ -4,12 +4,10 @@ from operators.intra_route_2opt import intra_route_2opt_inplace
 from operators.candidate_pruning import build_candidate_list_for_customer, get_candidate_insertion_positions
 
 
-def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None) -> bool:
+def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None, neighbors: dict = None) -> bool:
     """
-    Inter-route relocate using a classic first-improvement local search:
-    try moving one customer from one route to another and accept iff the
-    global penalised objective (as defined in Solution.update_cost) improves
-    and feasibility is preserved.
+    Inter-route relocate using a classic first-improvement local search.
+    Optimized with precomputed neighbor lists if provided.
     """
 
     routes = solution.routes
@@ -20,11 +18,12 @@ def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None) -> boo
     solution.update_cost()
     current_obj = solution.total_cost
 
-    # Build candidate lists for all customers (once, reused)
+    # Build candidate lists logic (only if neighbors not provided)
     all_customers_list = []
-    for route in routes:
-        for cid in route.customer_ids:
-            all_customers_list.append(route.customers_lookup[cid])
+    if neighbors is None:
+        for route in routes:
+            for cid in route.customer_ids:
+                all_customers_list.append(route.customers_lookup[cid])
     
     # Prefer smaller routes as sources, but consider waiting contribution
     routes_sorted = sorted(routes, key=lambda r: len(r.customer_ids))
@@ -45,11 +44,18 @@ def inter_route_relocate_inplace(solution: Solution, arrival_buffer=None) -> boo
 
             customer = src.get_customer_by_id(cust_id)
             
-            # Build candidate list for this customer (25 nearest neighbors)
-            candidate_neighbors = build_candidate_list_for_customer(customer, all_customers_list, k=25)
+            # Use precomputed neighbors if available
+            if neighbors and cust_id in neighbors:
+                candidate_neighbors = neighbors[cust_id]
+            else:
+                candidate_neighbors = build_candidate_list_for_customer(customer, all_customers_list, k=25)
 
             for dst in routes:
                 if dst is src:
+                    continue
+                
+                # Geometric Pruning
+                if not src.overlaps_with(dst, buffer=20.0):
                     continue
 
                 # Capacity pre-check

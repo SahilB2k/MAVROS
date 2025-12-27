@@ -72,10 +72,11 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
     initial_vehicles = len(solution.routes)
 
     # ------------------------------------------------------------
-    # PHASE 2: Multi-Pass Improvement (MDS)
+    # PHASE 2: Multi-Pass Improvement with Aggressive Fleet Reduction
     # ------------------------------------------------------------
     num_passes = 3 if n <= 50 else 5
-    total_iters = max_iterations if max_iterations else 80
+    # Increased iteration budget for better optimization
+    total_iters = max_iterations if max_iterations else (100 if n <= 50 else 120)
     iters_per_pass = total_iters // num_passes
 
     for pass_num in range(num_passes):
@@ -91,24 +92,123 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
             print(f"DEBUG [Warning]: MDS pass {pass_num+1} dropped {mih_count - mds_count} customers!")
             mih_count = mds_count # Update tracker
 
-        # Phase 2b: Merge pass with integrity guard
-        if pass_num == 0:
-            pre_merge_solution = copy.deepcopy(solution)
-            try:
-                solution = merge_underfilled_routes(
-                    solution=solution, 
-                    vehicle_capacity=vehicle_capacity,
-                    customers_lookup=customers_lookup, 
-                    utilization_threshold=0.6
-                )
-                merge_count = sum(len(r.customer_ids) for r in solution.routes)
-                print(f"DEBUG [Checkpoint 3]: Merge pass finished with {merge_count}/{n} customers.")
-                if merge_count < n:
-                    print("WARNING: Merge reduced customer count; rolling back.")
-                    solution = pre_merge_solution
-            except Exception as e:
-                print(f"WARNING: Merge failed with exception {e}; rolling back.")
+        # ENHANCED: Aggressive route merging after EVERY pass (not just first)
+        # This is critical for fleet reduction
+        pre_merge_solution = copy.deepcopy(solution)
+        pre_merge_vehicles = len(solution.routes)
+        try:
+            # More aggressive merging: lower threshold as we progress
+            threshold = 0.7 - (pass_num * 0.1)  # 0.7, 0.6, 0.5, 0.4, 0.3
+            threshold = max(0.3, threshold)  # Don't go below 0.3
+            
+            solution = merge_underfilled_routes(
+                solution=solution, 
+                vehicle_capacity=vehicle_capacity,
+                customers_lookup=customers_lookup, 
+                utilization_threshold=threshold
+            )
+            merge_count = sum(len(r.customer_ids) for r in solution.routes)
+            post_merge_vehicles = len(solution.routes)
+            
+            print(f"DEBUG [Checkpoint 3.{pass_num}]: Merge pass (threshold={threshold:.1f}) finished with {merge_count}/{n} customers, {post_merge_vehicles} vehicles (was {pre_merge_vehicles}).")
+            
+            if merge_count < n:
+                print("WARNING: Merge reduced customer count; rolling back.")
                 solution = pre_merge_solution
+            elif not solution.is_feasible():
+                print("WARNING: Merge created infeasible solution; rolling back.")
+                solution = pre_merge_solution
+        except Exception as e:
+            print(f"WARNING: Merge failed with exception {e}; rolling back.")
+            solution = pre_merge_solution
+    
+    # ------------------------------------------------------------
+    # PHASE 3: Controlled Fleet Reduction
+    # ------------------------------------------------------------
+    print(f"\nDEBUG [Phase 3]: Controlled fleet reduction (limit 5% cost increase/step)...")
+    print(f"  Starting: {len(solution.routes)} vehicles, cost={solution.total_base_cost:.2f}")
+    
+    # Target: Reduce to 12 vehicles (OR-Tools level)
+    target_vehicles = 12
+    
+    while len(solution.routes) > target_vehicles:
+        # Find the smallest route
+        smallest_route = min(solution.routes, key=lambda r: len(r.customer_ids))
+        customers_to_move = list(smallest_route.customer_ids)
+        
+        if len(customers_to_move) == 0:
+            solution.routes.remove(smallest_route)
+            continue
+        
+        print(f"  Attempting to eliminate route with {len(customers_to_move)} customers...")
+        
+        # Try to redistribute customers
+        backup_solution = copy.deepcopy(solution)
+        # Ensure backup cost is up to date
+        backup_cost = sum(r.total_cost for r in backup_solution.routes) 
+        
+        success = True
+        
+        # Remove the route
+        solution.routes = [r for r in solution.routes if r is not smallest_route]
+        
+        # Sort customers to move by due date (hardest first)
+        customers_to_move_objs = [customers_lookup[cid] for cid in customers_to_move]
+        customers_to_move_objs.sort(key=lambda c: c.due_date)
+        
+        # For each customer, find BEST feasible insertion
+        for customer in customers_to_move_objs:
+            cust_id = customer.id
+            inserted = False
+            best_move = None # (route_idx, pos, cost_increase)
+            best_increase = float('inf')
+            
+            # Use Best-Fit strategy instead of First-Fit
+            for r_idx, route in enumerate(solution.routes):
+                # Optimization: Skip if capacity definitely violated
+                if route.current_load + customer.demand > route.vehicle_capacity:
+                    continue
+                    
+                for pos in range(len(route.customer_ids) + 1):
+                    # Use delta cost check which is efficient and includes feasibility
+                    delta, feasible = route.get_move_delta_cost_for_external_customer(cust_id, pos)
+                    if feasible and delta < best_increase:
+                        best_increase = delta
+                        best_move = (r_idx, pos)
+            
+            if best_move:
+                r_idx, pos = best_move
+                # Execute the best move
+                if solution.routes[r_idx].insert_inplace(cust_id, pos):
+                    inserted = True
+                else:
+                    # Should not happen if get_move_delta... said feasible, but safety check
+                    inserted = False
+            
+            if not inserted:
+                # Couldn't insert this customer anywhere
+                success = False
+                break
+        
+        if success and solution.is_feasible():
+            solution.update_cost()
+            new_cost = solution.total_base_cost
+            cost_increase_pct = ((new_cost - backup_cost) / backup_cost) * 100 if backup_cost > 0 else 0
+            
+            if cost_increase_pct <= 5.0:
+                print(f"  ✓ Eliminated route! Now {len(solution.routes)} vehicles, cost={new_cost:.2f} (+{cost_increase_pct:.2f}%)")
+            else:
+                # Rollback - too expensive
+                solution = backup_solution
+                print(f"  ✗ Failed: Cost increase too high (+{cost_increase_pct:.2f}% > 5.0%). Stopping fleet reduction.")
+                break
+        else:
+            # Rollback
+            solution = backup_solution
+            print(f"  ✗ Failed to eliminate route (infeasible). Stopping fleet reduction.")
+            break
+            
+    print(f"  Final: {len(solution.routes)} vehicles, cost={solution.total_base_cost:.2f}")
 
     # ------------------------------------------------------------
     # FINAL VALIDATION & STATS

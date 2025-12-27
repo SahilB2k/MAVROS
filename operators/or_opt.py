@@ -12,10 +12,12 @@ GEODESIC PRUNING: Only checks insertion positions where predecessor is among
 from core.data_structures import Route, distance
 
 
-def _build_nearest_neighbors(route: Route, k: int = 20) -> dict:
+def _build_nearest_neighbors(route: Route, k: int = 10) -> dict:
     """
     Build nearest neighbor lookup for each customer in the route.
     Returns dict mapping customer_id -> list of k nearest neighbor customer_ids (sorted by distance).
+    
+    Optimized: Reduced k from 20 to 10 for faster execution with minimal quality loss.
     """
     from core.data_structures import Customer
     
@@ -46,16 +48,16 @@ def _build_nearest_neighbors(route: Route, k: int = 20) -> dict:
     return neighbors
 
 
-def or_opt_inplace(route: Route, max_segment_len: int = 3, max_trials: int = 100) -> bool:
+def or_opt_inplace(route: Route, max_segment_len: int = 3, max_trials: int = 150) -> bool:
     """
-    Apply a FIRST-IMPROVEMENT or-opt (segment relocate) within a route.
+    Apply a BEST-IMPROVEMENT or-opt (segment relocate) within a route.
     Uses geodesic pruning: only evaluates positions where predecessor is among
-    20 nearest neighbors of segment's first customer.
+    10 nearest neighbors of segment's first customer.
     
     Args:
         route: Route to modify in place.
         max_segment_len: maximum segment length to move (1..3 typical).
-        max_trials: Maximum number of insertion positions to check per segment (default 100).
+        max_trials: Maximum number of insertion positions to check per segment (default 150).
 
     Returns:
         True if an improving move was applied; False otherwise.
@@ -68,18 +70,23 @@ def or_opt_inplace(route: Route, max_segment_len: int = 3, max_trials: int = 100
     route.calculate_cost_inplace() # O(N)
     base_obj = route.total_cost
 
-    # Build nearest neighbor lookup for geodesic pruning (increased from 10 to 20)
-    neighbors = _build_nearest_neighbors(route, k=20)
+    # Build nearest neighbor lookup for geodesic pruning (optimized to k=10)
+    neighbors = _build_nearest_neighbors(route, k=10)
+    
+    # Adaptive max segment length: use 4 for larger routes
+    adaptive_max_len = min(max_segment_len, 4 if n > 15 else 3)
+    
+    best_delta = -1e-6 # Must improve by at least epsilon
+    best_move = None # (start, end, insert_pos)
 
-    # Try segment lengths 1..max_segment_len
-    for seg_len in range(1, min(max_segment_len, n) + 1):
+    # Try segment lengths 1..adaptive_max_len
+    for seg_len in range(1, min(adaptive_max_len, n) + 1):
         for start in range(0, n - seg_len + 1):
             end = start + seg_len 	# exclusive
             segment = route.customer_ids[start:end]
             
             # Get first customer in segment for nearest neighbor lookup
             seg_first_id = segment[0]
-            seg_first_customer = route.customers_lookup[seg_first_id]
             candidate_neighbors = neighbors.get(seg_first_id, [])
             
             # Track trials to enforce max_trials limit
@@ -124,22 +131,28 @@ def or_opt_inplace(route: Route, max_segment_len: int = 3, max_trials: int = 100
                 # Check cost and feasibility without modifying the route list
                 delta_cost, is_feasible = route.get_move_delta_cost(start, end, insert_pos) # O(N)
 
-                if is_feasible and (base_obj + delta_cost < base_obj - 1e-6):
-                    # --- Execute the Improving Move (The only time we modify the list) ---
-                    
-                    # 1. Physical Removal
-                    del route.customer_ids[start:end]
-                    
-                    # 2. Adjust insertion position due to removal
-                    if insert_pos > start:
-                        insert_pos -= seg_len
-                    
-                    # 3. Physical Insertion
-                    route.customer_ids[insert_pos:insert_pos] = segment
-                    
-                    # 4. Finalize schedule and cost
-                    route.calculate_cost_inplace() # O(N)
-                    
-                    return True # First improvement found and applied
+                if is_feasible and delta_cost < best_delta:
+                    best_delta = delta_cost
+                    best_move = (start, end, insert_pos)
+    
+    # Apply best move if found
+    if best_move:
+        start, end, insert_pos = best_move
+        seg_len = end - start
+        segment = route.customer_ids[start:end]
+        
+        # 1. Physical Removal
+        del route.customer_ids[start:end]
+        
+        # 2. Adjust insertion position due to removal
+        if insert_pos > start:
+            insert_pos -= seg_len
+        
+        # 3. Physical Insertion
+        route.customer_ids[insert_pos:insert_pos] = segment
+        
+        # 4. Finalize schedule and cost
+        route.calculate_cost_inplace() # O(N)
+        return True
 
     return False

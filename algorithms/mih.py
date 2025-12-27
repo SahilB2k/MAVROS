@@ -11,7 +11,7 @@ def limited_candidate_mih(
     depot: Customer,
     customers: List[Customer],
     vehicle_capacity: int,
-    candidate_ratio: float = 0.3,
+    candidate_ratio: float = 0.7,
     min_candidates: int = 5,
     random_seed: Optional[int] = None
 ) -> Solution:
@@ -20,11 +20,19 @@ def limited_candidate_mih(
         random.seed(random_seed)
 
     customers_lookup: Dict[int, Customer] = {c.id: c for c in customers}
-    # Create a COPY of all IDs to track
-    unrouted_ids: List[int] = [c.id for c in customers]
+    # Sort customers by time window tightness (slack) + due date urgency
+    # This prioritizes customers that are harder to fit later
+    customers_sorted = sorted(customers, key=lambda c: (c.due_date - c.ready_time, c.due_date))
+    unrouted_ids: List[int] = [c.id for c in customers_sorted]
     total_to_route = len(unrouted_ids)
     
-    random.shuffle(unrouted_ids)
+    # Shuffle only within time window groups to maintain some structure
+    # Reduced randomness to prioritize "difficult" customers more strictly
+    chunk_size = max(3, len(unrouted_ids) // 15)
+    for i in range(0, len(unrouted_ids), chunk_size):
+        chunk = unrouted_ids[i:i+chunk_size]
+        random.shuffle(chunk)
+        unrouted_ids[i:i+chunk_size] = chunk
     solution = Solution()
     routes: List[Route] = []
 
@@ -33,8 +41,11 @@ def limited_candidate_mih(
         # 1. Selection Phase (Regret-2)
         best_choice = None
         
-        # Sample candidates to evaluate
+        # Sample candidates to evaluate - INCREASED for quality
+        # We want to look at more candidates to make better regret decisions
         num_to_sample = max(min_candidates, int(len(unrouted_ids) * candidate_ratio))
+        # Ensure we sample at least 60% of remaining customers for better quality
+        num_to_sample = max(num_to_sample, min(len(unrouted_ids), int(len(unrouted_ids) * 0.6)))
         sampled_ids = random.sample(unrouted_ids, min(num_to_sample, len(unrouted_ids)))
 
         for customer_id in sampled_ids:
@@ -60,8 +71,9 @@ def limited_candidate_mih(
             new_r_temp = Route(depot, vehicle_capacity, customers_lookup)
             cost_new = calculate_insertion_cost_inline(new_r_temp, customer, 0)
             
-            # Penalize new route slightly (e.g., +200) to encourage packing
-            cost_new_penalized = cost_new + 200.0
+            # Adjusted penalty to 300.0 (was 500.0)
+            # This allows natural fleet growth when needed, reducing "forcing" into bad spots
+            cost_new_penalized = cost_new + 300.0
             
             if cost_new_penalized < best_cost:
                 second_best_cost = best_cost

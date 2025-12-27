@@ -1,0 +1,39 @@
+Testing ENHANCED solver on C102 (100 customers)...
+============================================================
+DEBUG: Data Loader complete. Found 1 depot and 100 customers.
+DEBUG [Checkpoint 1]: MIH constructed solution with 100/100 customers.
+DEBUG: Fleet Reduction Pass 20. Vehicles: 25
+DEBUG: Fleet Reduction Pass 30. Vehicles: 23
+DEBUG: Fleet Reduction Pass 35. Vehicles: 20
+DEBUG: Fleet Reduction Pass 45. Vehicles: 13
+DEBUG: Fleet Reduction Pass 50. Vehicles: 13
+DEBUG: Starting MDS loop. Initial cost: 47192.97
+DEBUG [Checkpoint 3.0]: Merge pass (threshold=0.7) finished with 100/100 customers, 12 vehicles (was 12).
+DEBUG: Fleet Reduction Pass 5. Vehicles: 12
+DEBUG: Fleet Reduction Pass 10. Vehicles: 12
+DEBUG: Starting MDS loop. Initial cost: 42808.48
+DEBUG [Checkpoint 3.1]: Merge pass (threshold=0.6) finished with 100/100 customers, 12 vehicles (was 12).
+DEBUG: Starting MDS loop. Initial cost: 42806.04
+DEBUG [Checkpoint 3.2]: Merge pass (threshold=0.5) finished with 100/100 customers, 12 vehicles (was 12).
+DEBUG: Fleet Reduction Pass 5. Vehicles: 12
+DEBUG: Starting MDS loop. Initial cost: 42602.41
+DEBUG [Checkpoint 3.3]: Merge pass (threshold=0.4) finished with 100/100 customers, 12 vehicles (was 12).
+DEBUG: Starting MDS loop. Initial cost: 42491.84
+DEBUG [Checkpoint 3.4]: Merge pass (threshold=0.3) finished with 100/100 customers, 12 vehicles (was 12).
+
+DEBUG [Phase 3]: Controlled fleet reduction (limit 5% cost increase/step)...
+  Starting: 12 vehicles, cost=2538.04
+  Final: 12 vehicles, cost=2538.04
+
+* SUCCESS: All 100/100 customers served. *
+
+============================================================
+ENHANCED OPTIMIZATION RESULTS
+============================================================
+Cost: 2538.04
+Vehicles: 12
+Time: 21.08s
+Improvement from initial: 82.42%
+============================================================
+
+Target: Cost < 1800, Vehicles <= 12 (to match OR-Tools)

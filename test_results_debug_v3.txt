@@ -1,0 +1,12 @@
+Testing ENHANCED solver on C102 (100 customers)...
+============================================================
+DEBUG: Data Loader complete. Found 1 depot and 100 customers.
+DEBUG [Checkpoint 1]: MIH constructed solution with 100/100 customers.
+Traceback (most recent call last):
+  File "C:\projects\MAVROS\test_enhanced.py", line 18, in <module>
+    solution, stats = solve_vrptw_with_stats(instance, max_iterations=120)
+  File "c:\projects/MAVROS\algorithms\hybrid_solver.py", line 83, in solve_vrptw_with_stats
+    solution = selective_mds(
+  File "c:\projects/MAVROS\algorithms\mds.py", line 167, in selective_mds
+    if not improved_fleet:
+NameError: name 'improved_fleet' is not defined

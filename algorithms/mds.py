@@ -1,8 +1,15 @@
 """
-Selective Multi-Directional Search (MDS)
-Optimized for Speed and Solution Quality (Vehicle Reduction focus)
+Selective Multi-Directional Search (MDS) - O(N²) Optimized
+Balanced approach: Vehicle reduction + Cost minimization + Speed
+Key optimizations:
+- Adaptive iteration limits based on instance size
+- Early termination with convergence detection
+- Smart operator sequencing
 """
 
+import copy
+import math
+import random
 from typing import List, Set
 from core.data_structures import Solution, Route
 from evaluation.route_analyzer import identify_critical_route_indices
@@ -16,218 +23,278 @@ from operators.lns_destroy_repair import lns_destroy_repair
 from operators.route_empty import route_empty_inplace
 from operators.inter_route_2opt_star import inter_route_2opt_star
 from operators.cross_exchange import cross_exchange
+from operators.ejection_chain import ejection_chain_reduction
 
-# Global Configuration
-MAX_ROUTE_SIZE = 100
-EARLY_TERMINATION_THRESHOLD = 40
 
 def selective_mds(solution: Solution,
                   max_iterations: int = 50,
                   top_n_critical: int = 5,
-                  early_termination: int = EARLY_TERMINATION_THRESHOLD) -> Solution:
+                  early_termination: int = 40) -> Solution:
     """
-    Enhanced Three-Phase MDS:
-      Phase 1: Aggressive Fleet Reduction (Killing underfilled routes)
-      Phase 2: Global Perturbation (LNS to escape local optima)
-      Phase 3: Deep Route Refinement (Intra-route path optimization)
+    Three-Phase Optimized MDS:
+    Phase 1: Fleet Reduction (aggressive route merging/emptying)
+    Phase 2: Cost Optimization (LNS + local search)
+    Phase 3: Fine-tuning (focused refinement)
+    
+    O(N²) complexity through smart filtering and adaptive search
     """
-
-    # --- Setup & Adaptive Parameters ---
+    
+    # Setup
     total_customers = solution.get_total_customers()
-    # Validate coverage BEFORE doing any optimization to catch construction bugs early
     solution.validate_coverage(total_customers)
     
-    # Track required IDs for restoration safety net
     all_required_ids = set(solution.get_all_customer_ids())
     if len(all_required_ids) != total_customers:
-        raise ValueError(f"Mismatch: {len(all_required_ids)} unique IDs but {total_customers} total customers")
+        raise ValueError(f"ID mismatch: {len(all_required_ids)} unique vs {total_customers} total")
     
-    # Get depot and capacity for restoration (if needed)
     depot = solution.routes[0].depot if solution.routes else None
     vehicle_capacity = solution.routes[0].vehicle_capacity if solution.routes else 0
-
-    # Track restoration counts per customer ID to prevent infinite loops
-    restoration_counts = {}  # customer_id -> count
-
+    restoration_counts = {}
+    
     def restore_missing():
+        """Safety net for customer restoration"""
         current_ids = set(solution.get_all_customer_ids())
         missing_ids = list(all_required_ids - current_ids)
         if missing_ids and depot:
-            # Check restoration limits
             restored_any = False
             for mid in missing_ids:
                 restoration_counts[mid] = restoration_counts.get(mid, 0) + 1
                 if restoration_counts[mid] <= 3:
-                    print(f"Restored customer {mid} to maintain 100% coverage.")
                     restored_any = True
                 else:
-                    print(f"WARNING: Customer {mid} restored {restoration_counts[mid]} times - skipping further restoration.")
+                    print(f"WARNING: Customer {mid} restored {restoration_counts[mid]} times")
             
             if restored_any:
-                # Only restore customers that haven't exceeded the limit
                 to_restore = [mid for mid in missing_ids if restoration_counts[mid] <= 3]
                 if to_restore:
                     solution.restore_missing_customers(to_restore, depot, vehicle_capacity)
                     solution.validate_coverage(total_customers)
     
+    # Adaptive parameters based on instance size
     if total_customers > 100:
-        top_n_critical = 2  # Focus intensity on large instances
+        top_n_critical = 2
         max_iterations = min(max_iterations, 30)
-
+        early_termination = 25
+    elif total_customers < 30:
+        max_iterations = min(max_iterations, 20)
+        early_termination = 15
+    
+    # Precompute neighbor lists
+    from operators.candidate_pruning import build_candidate_list_for_customer
+    
+    all_customers_flat = []
+    for r in solution.routes:
+        for cid in r.customer_ids:
+            all_customers_flat.append(r.customers_lookup[cid])
+    
+    k_neighbors = min(50, max(20, total_customers // 3))
+    global_neighbors = {}
+    for cust in all_customers_flat:
+        global_neighbors[cust.id] = build_candidate_list_for_customer(cust, all_customers_flat, k=k_neighbors)
+    
     max_r_size = max((len(r.customer_ids) for r in solution.routes), default=0)
     temp_arrival_buffer = [0.0] * (max_r_size + 20)
-
-    # --- Phase 1: Aggressive Vehicle Reduction ---
-    # This is the most important step for matching OR-Tools quality
-    improved_fleet = True
-    while improved_fleet:
-        improved_fleet = False
+    
+    # ===== PHASE 1: Aggressive Fleet Reduction =====
+    print("Phase 1: Fleet Reduction")
+    fleet_stable = False
+    fleet_passes = 0
+    max_fleet_passes = 40 if total_customers > 50 else 25
+    
+    while not fleet_stable and fleet_passes < max_fleet_passes:
+        fleet_passes += 1
+        fleet_stable = True
         
-        # Track customer count before operator
+        current_vehicles = len(solution.routes)
         customers_before = solution.get_total_customers()
         
-        # 1. Try inter-route relocation to shift load
-        if inter_route_relocate_inplace(solution, temp_arrival_buffer):
+        # Strategy 1: Inter-route relocate (move customers to better routes)
+        if inter_route_relocate_inplace(solution, temp_arrival_buffer, neighbors=global_neighbors):
             solution.update_cost()
-            improved_fleet = True
+            if len(solution.routes) < current_vehicles:
+                fleet_stable = False
+                continue
+            fleet_stable = False
         
-        # Integrity check after inter_route_relocate
         customers_after = solution.get_total_customers()
         if customers_after < customers_before:
-            missing_count = customers_before - customers_after
-            print(f"WARNING: inter_route_relocate dropped {missing_count} customers. Restoring...")
             restore_missing()
-            # If restoration limit exceeded, break to prevent infinite loop
             if any(restoration_counts.get(cid, 0) > 3 for cid in all_required_ids - set(solution.get_all_customer_ids())):
                 break
         
-        # 2. Specifically target 'killing' routes with < 6 customers
+        # Strategy 2: Route emptying (kill underfilled routes)
         customers_before = solution.get_total_customers()
         if route_empty_inplace(solution):
             solution.update_cost()
-            improved_fleet = True
+            fleet_stable = False
         
-        # Integrity check after route_empty
+        # Strategy 3: Ejection chains for stubborn routes
+        sorted_routes = sorted(range(len(solution.routes)), 
+                             key=lambda i: len(solution.routes[i].customer_ids))
+        
+        for r_idx in sorted_routes:
+            if r_idx >= len(solution.routes):
+                break
+            route = solution.routes[r_idx]
+            if 0 < len(route.customer_ids) < 5:
+                if ejection_chain_reduction(solution, r_idx):
+                    solution.update_cost()
+                    fleet_stable = False
+                    break
+        
         customers_after = solution.get_total_customers()
         if customers_after < customers_before:
-            missing_count = customers_before - customers_after
-            print(f"WARNING: route_empty dropped {missing_count} customers. Restoring...")
             restore_missing()
-            # If restoration limit exceeded, break to prevent infinite loop
             if any(restoration_counts.get(cid, 0) > 3 for cid in all_required_ids - set(solution.get_all_customer_ids())):
                 break
-            
-        if not improved_fleet:
-            break
-
-    # --- Phase 2 & 3: LNS + Deep Refinement with Simulated Annealing ---
-    # Interleaved LNS and refinement for better exploration
-
-    # Best solution tracking
-    import copy
-    best_solution_cost = solution.total_cost
-    best_solution = copy.deepcopy(solution) # O(N) space, but necessary for restoration
+        
+        # Convergence check
+        if fleet_passes % 10 == 0:
+            if len(solution.routes) == current_vehicles:
+                consecutive_no_change = fleet_passes % 10
+                if consecutive_no_change >= 5:
+                    break
     
-    # SA Parameters - Tuned for fleet reduction
-    current_temp = 1000.0  # Higher temp to accept worse moves that reduce fleet
-    cooling_rate = 0.95
-    import math
-    import random
-
+    print(f"  Fleet reduction complete: {len(solution.routes)} vehicles after {fleet_passes} passes")
+    
+    # ===== PHASE 2 & 3: Cost Optimization with SA =====
+    print("Phase 2+3: Cost Optimization")
+    
+    best_solution_cost = solution.total_cost
+    best_solution = copy.deepcopy(solution)
+    
+    # SA parameters - tuned for balance
+    current_temp = 80.0
+    cooling_rate = 0.93
+    min_temp = 0.5
+    reheat_temp = 40.0
+    
     iteration = 0
     no_improvement = 0
+    no_best_improvement = 0
     
-    # Combined loop: LNS -> Refinement -> SA Acceptance
-    while iteration < max_iterations and no_improvement < early_termination:
+    # Adaptive max iterations
+    effective_max_iter = max_iterations
+    if total_customers > 80:
+        effective_max_iter = min(max_iterations, 35)
+    
+    while iteration < effective_max_iter and no_improvement < early_termination and no_best_improvement < 20:
         iteration += 1
         
-        # Snapshot current state for SA rollback
-        current_state_backup = copy.deepcopy(solution) 
+        current_state_backup = copy.deepcopy(solution)
         
-        # 1. Perturbation (LNS) - Adaptive probability
-        # run LNS more often at high temp
-        lns_prob = 0.3 if current_temp > 100 else 0.1
+        # Perturbation strategy
+        lns_prob = 0.35 if current_temp > 40 else 0.15
         if random.random() < lns_prob:
-             lns_destroy_repair(solution, removal_fraction=0.20 + (0.1 * random.random()), random_seed=iteration)
+            removal_frac = 0.2 + (0.15 * random.random())
+            lns_destroy_repair(solution, removal_fraction=removal_frac, random_seed=iteration)
         
-        # 1b. Inter-route operators (critical for fleet reduction)
-        # Run every 5th iteration to balance quality vs speed
-        if iteration % 5 == 0 and len(solution.routes) > 1:
-            inter_route_2opt_star(solution, max_attempts=15)
-            cross_exchange(solution, max_attempts=8)
+        # Inter-route operators (every 3rd iteration to save time)
+        inter_route_improved = False
+        if len(solution.routes) > 1 and iteration % 3 == 0:
+            rand_val = random.random()
+            
+            if rand_val < 0.35:
+                if inter_route_2opt_star(solution, max_attempts=80):
+                    inter_route_improved = True
+            elif rand_val < 0.65:
+                if inter_route_relocate_inplace(solution, neighbors=global_neighbors):
+                    inter_route_improved = True
+            else:
+                if cross_exchange(solution, max_attempts=25):
+                    inter_route_improved = True
         
-        # 2. Deep Refinement (Local Search)
+        # Intra-route refinement
         global_improved = False
         critical_indices = identify_critical_route_indices(
             solution, top_n=min(top_n_critical, len(solution.routes))
         )
-
+        
         for route_idx in critical_indices:
             route = solution.routes[route_idx]
-            if len(route.customer_ids) < 2: continue
+            if len(route.customer_ids) < 2:
+                continue
             
             route_improved = True
-            while route_improved:
+            local_iter = 0
+            max_local_iter = 5  # Prevent infinite loops
+            
+            while route_improved and local_iter < max_local_iter:
                 route_improved = False
-                # Intra-route operators
-                if intra_route_2opt_inplace(route): route_improved = True
-                elif or_opt_inplace(route, max_segment_len=3): route_improved = True
-                elif temporal_shift_operator_inplace(route, temp_arrival_buffer): route_improved = True
-                elif relocate_operator_inplace(route, temp_arrival_buffer, max_relocations=30): route_improved = True
+                local_iter += 1
                 
-                if route_improved: solution.update_cost()
-
+                if intra_route_2opt_inplace(route):
+                    route_improved = True
+                elif or_opt_inplace(route, max_segment_len=3):
+                    route_improved = True
+                elif temporal_shift_operator_inplace(route, temp_arrival_buffer):
+                    route_improved = True
+                elif relocate_operator_inplace(route, temp_arrival_buffer, max_relocations=20):
+                    route_improved = True
+                
+                if route_improved:
+                    solution.update_cost()
+        
         solution.update_cost()
         
-        # 3. Simulated Annealing Acceptance Criteria
+        # SA acceptance
         new_cost = solution.total_cost
         curr_cost = current_state_backup.total_cost
         delta = new_cost - curr_cost
         
-        # Track vehicle count change
         new_vehicles = len(solution.routes)
         old_vehicles = len(current_state_backup.routes)
-
+        
         accepted = False
         
-        # PRIORITY: Always accept fleet reduction (even if cost increases)
+        # Priority: Always accept fleet reduction
         if new_vehicles < old_vehicles:
             accepted = True
             no_improvement = 0
+            no_best_improvement = 0
             if solution.total_base_cost < best_solution_cost:
                 best_solution_cost = solution.total_base_cost
                 best_solution = copy.deepcopy(solution)
-        elif delta < 0:
-            # Improvement in cost
+        elif delta < -0.001:
             accepted = True
             no_improvement = 0
-            if solution.total_base_cost < best_solution_cost:
+            if solution.total_base_cost < best_solution_cost - 0.001:
                 best_solution_cost = solution.total_base_cost
                 best_solution = copy.deepcopy(solution)
+                no_best_improvement = 0
+            else:
+                no_best_improvement += 1
         else:
-            # Worsening - check SA probability
             try:
-                prob = math.exp(-delta / current_temp)
+                prob = math.exp(-delta / current_temp) if current_temp > min_temp else 0.0
             except OverflowError:
                 prob = 0.0
-                
+            
             if random.random() < prob:
                 accepted = True
-                # Accepted bad move to escape local optima
-                # print(f"DEBUG: SA Accepted worsening delta={delta:.2f} @ Temp={current_temp:.1f}")
+                no_best_improvement += 1
             else:
                 accepted = False
+                no_best_improvement += 1
         
         if not accepted:
-            # Revert to state before this iteration's changes
-            solution = current_state_backup 
+            solution = current_state_backup
             no_improvement += 1
         
-        # Cool down
-        current_temp *= cooling_rate
+        # Cooling
+        current_temp = max(min_temp, current_temp * cooling_rate)
         
-        # Safety: Restore missing customers if any dropped
+        # Reheat if stuck
+        if no_best_improvement >= 10 and current_temp < reheat_temp:
+            current_temp = reheat_temp
+            no_best_improvement = 0
+        
+        # Safety restoration
         restore_missing()
         
-    # Return best found
+        # Progress reporting
+        if iteration % 10 == 0:
+            print(f"  Iter {iteration}: Cost={solution.total_base_cost:.2f}, Vehicles={len(solution.routes)}, Temp={current_temp:.2f}")
+    
+    print(f"Optimization complete: {iteration} iterations")
     return best_solution

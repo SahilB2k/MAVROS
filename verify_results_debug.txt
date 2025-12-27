@@ -1,0 +1,161 @@
+============================================================
+VERIFY IMPROVEMENTS - C101 (25 customers)
+Target: 3 vehicles, Cost ~191.3
+============================================================
+DEBUG: Data Loader complete. Found 1 depot and 25 customers.
+DEBUG [Checkpoint 1]: MIH constructed solution with 25/25 customers.
+DEBUG: Starting MDS loop. Initial cost: 10522.03
+DEBUG Iter 1: Cost 10522.03 -> 10502.23 (-19.80). Temp=100.0. Cost Improvement. Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 2: Cost 10502.23 -> 10502.23 (+0.00). Temp=95.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 3: Cost 10502.23 -> 10502.23 (+0.00). Temp=90.2. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 4: Cost 10502.23 -> 10502.23 (+0.00). Temp=85.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 5: Cost 10502.23 -> 10502.23 (+0.00). Temp=81.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 6: Cost 10502.23 -> 10502.23 (+0.00). Temp=77.4. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 7: Cost 10502.23 -> 10502.23 (+0.00). Temp=73.5. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 8: Cost 10502.23 -> 10502.23 (+0.00). Temp=69.8. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 9: Cost 10502.23 -> 10502.23 (+0.00). Temp=66.3. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 10: Cost 10502.23 -> 10502.23 (+0.00). Temp=63.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 11: Cost 10502.23 -> 10502.23 (+0.00). Temp=59.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 12: Cost 10502.23 -> 10502.23 (+0.00). Temp=56.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 13: Cost 10502.23 -> 10502.23 (+0.00). Temp=54.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 14: Cost 10502.23 -> 10502.23 (+0.00). Temp=51.3. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 15: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 16: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 17: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 18: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 19: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 20: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 21: Cost 10502.23 -> 10502.23 (+0.00). Temp=36.8. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 22: Cost 10502.23 -> 10502.23 (+0.00). Temp=34.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 24: Cost 10502.23 -> 10502.23 (+0.00). Temp=31.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 25: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 26: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 27: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 28: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 29: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 30: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 31: Cost 10502.23 -> 10502.23 (+0.00). Temp=36.8. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 32: Cost 10502.23 -> 10502.23 (+0.00). Temp=34.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 33: Cost 10502.23 -> 10502.23 (+0.00). Temp=33.2. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 34: Cost 10502.23 -> 10502.23 (+0.00). Temp=31.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 35: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 36: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 37: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 38: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 39: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 40: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: MDS finished. Best cost: 10502.23
+DEBUG [Checkpoint 3.0]: Merge pass (threshold=0.7) finished with 25/25 customers, 3 vehicles (was 3).
+DEBUG: Starting MDS loop. Initial cost: 10502.23
+DEBUG Iter 1: Cost 10502.23 -> 10502.23 (+0.00). Temp=100.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 2: Cost 10502.23 -> 10502.23 (+0.00). Temp=95.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 3: Cost 10502.23 -> 10502.23 (+0.00). Temp=90.2. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 4: Cost 10502.23 -> 10502.23 (+0.00). Temp=85.7. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 5: Cost 10502.23 -> 10502.23 (+0.00). Temp=81.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 6: Cost 10502.23 -> 10502.23 (+0.00). Temp=77.4. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 7: Cost 10502.23 -> 10502.23 (+0.00). Temp=73.5. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 8: Cost 10502.23 -> 10502.23 (+0.00). Temp=69.8. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 9: Cost 10502.23 -> 10502.23 (+0.00). Temp=66.3. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 10: Cost 10502.23 -> 10502.23 (+0.00). Temp=63.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 11: Cost 10502.23 -> 10502.23 (+0.00). Temp=59.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 12: Cost 10502.23 -> 10502.23 (+0.00). Temp=56.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 13: Cost 10502.23 -> 10502.23 (+0.00). Temp=54.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 14: Cost 10502.23 -> 10502.23 (+0.00). Temp=51.3. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 15: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 16: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 17: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 18: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 19: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 20: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 21: Cost 10502.23 -> 10502.23 (+0.00). Temp=36.8. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 22: Cost 10502.23 -> 10502.23 (+0.00). Temp=34.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 24: Cost 10502.23 -> 10502.23 (+0.00). Temp=31.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 25: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 26: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 27: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 28: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 29: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 30: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 31: Cost 10502.23 -> 10502.23 (+0.00). Temp=36.8. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 32: Cost 10502.23 -> 10502.23 (+0.00). Temp=34.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 33: Cost 10502.23 -> 10502.23 (+0.00). Temp=33.2. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 34: Cost 10502.23 -> 10502.23 (+0.00). Temp=31.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 35: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 36: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 37: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 38: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 39: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 40: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: MDS finished. Best cost: 10502.23
+DEBUG [Checkpoint 3.1]: Merge pass (threshold=0.6) finished with 25/25 customers, 3 vehicles (was 3).
+DEBUG: Starting MDS loop. Initial cost: 10502.23
+DEBUG Iter 1: Cost 10502.23 -> 10502.23 (+0.00). Temp=100.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 2: Cost 10502.23 -> 10502.23 (+0.00). Temp=95.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 3: Cost 10502.23 -> 10502.23 (+0.00). Temp=90.2. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 4: Cost 10502.23 -> 10502.23 (+0.00). Temp=85.7. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 5: Cost 10502.23 -> 10502.23 (+0.00). Temp=81.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 6: Cost 10502.23 -> 10502.23 (+0.00). Temp=77.4. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 7: Cost 10502.23 -> 10502.23 (+0.00). Temp=73.5. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 8: Cost 10502.23 -> 10502.23 (+0.00). Temp=69.8. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 9: Cost 10502.23 -> 10502.23 (+0.00). Temp=66.3. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 10: Cost 10502.23 -> 10502.23 (+0.00). Temp=63.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 11: Cost 10502.23 -> 10502.23 (+0.00). Temp=59.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 12: Cost 10502.23 -> 10502.23 (+0.00). Temp=56.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 13: Cost 10502.23 -> 10502.23 (+0.00). Temp=54.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 14: Cost 10502.23 -> 10502.23 (+0.00). Temp=51.3. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 15: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 16: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 17: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 18: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 19: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 20: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 21: Cost 10502.23 -> 10502.23 (+0.00). Temp=36.8. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 22: Cost 10502.23 -> 10502.23 (+0.00). Temp=34.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 24: Cost 10502.23 -> 10502.23 (+0.00). Temp=31.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 25: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 26: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 27: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 28: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 29: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 30: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 31: Cost 10502.23 -> 10502.23 (+0.00). Temp=36.8. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 32: Cost 10502.23 -> 10502.23 (+0.00). Temp=34.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 33: Cost 10502.23 -> 10502.23 (+0.00). Temp=33.2. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 34: Cost 10502.23 -> 10502.23 (+0.00). Temp=31.5. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: Reheating temperature!
+DEBUG Iter 35: Cost 10502.23 -> 10502.23 (+0.00). Temp=50.0. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 36: Cost 10502.23 -> 10502.23 (+0.00). Temp=47.5. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 37: Cost 10502.23 -> 10502.23 (+0.00). Temp=45.1. SA Acceptance (prob=1.0000). Ops: LNS=True, Inter=False, Intra=0
+DEBUG Iter 38: Cost 10502.23 -> 10502.23 (+0.00). Temp=42.9. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 39: Cost 10502.23 -> 10502.23 (+0.00). Temp=40.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG Iter 40: Cost 10502.23 -> 10502.23 (+0.00). Temp=38.7. SA Acceptance (prob=1.0000). Ops: LNS=False, Inter=False, Intra=0
+DEBUG: MDS finished. Best cost: 10502.23
+DEBUG [Checkpoint 3.2]: Merge pass (threshold=0.5) finished with 25/25 customers, 3 vehicles (was 3).
+
+DEBUG [Phase 3]: Controlled fleet reduction (limit 5% cost increase/step)...
+  Starting: 3 vehicles, cost=547.61
+  Final: 3 vehicles, cost=547.61
+
+* SUCCESS: All 25/25 customers served. *
+
+============================================================
+RESULTS
+============================================================
+Vehicles: 3
+Total Cost: 547.61
+Solve Time: 2.596s
+Feasible: True
+Initial Cost: 3632.80
+Final Cost: 547.61
+Improvement: 84.93%
+============================================================
+Optimality Gap: 186.26%
+PARTIAL SUCCESS: Met vehicle target but cost gap is high.
