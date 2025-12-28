@@ -247,7 +247,9 @@ class Route:
 
             arrival_times[i] = arrival
             
-            segment_cost = travel + (wait * 1.1)
+            # CRITICAL: Waiting time penalty increased 1.1 -> 1.3
+            # This discourages solutions with excessive waiting (main cost driver)
+            segment_cost = travel + (wait * 1.3)
             self._cost_segments[i] = segment_cost
             total_cost += segment_cost
 
@@ -508,7 +510,7 @@ class Route:
             self.calculate_cost_inplace()
 
         distance_only = self.get_total_distance()
-        return (self.total_cost - distance_only) / 1.1
+        return (self.total_cost - distance_only) / 1.3  # Updated to match new penalty
     
     def get_waiting_contributions(self) -> List[tuple[int, float]]:
         """Return per-customer waiting contributions"""

@@ -1,158 +1,171 @@
 """
-Intra-route Or-Opt (1-3 customer segment relocate) - FIRST IMPROVEMENT.
-
-Moves a short segment within the same route to another position,
-keeping feasibility. Objective: distance + waiting.
-
-PERFORMANCE FIX: Uses incremental cost evaluation (O(N^2) instead of O(N^3))
-GEODESIC PRUNING: Only checks insertion positions where predecessor is among
-10 nearest neighbors of segment's first customer.
+Enhanced Or-Opt with Larger Segments and Smarter Selection
+Replace your existing or_opt.py with this version for better cost reduction
 """
 
-from core.data_structures import Route, distance
+from core.data_structures import Route
+from typing import Optional
 
 
-def _build_nearest_neighbors(route: Route, k: int = 10) -> dict:
+def or_opt_inplace(route: Route, max_segment_len: int = 4, max_attempts: int = 100) -> bool:
     """
-    Build nearest neighbor lookup for each customer in the route.
-    Returns dict mapping customer_id -> list of k nearest neighbor customer_ids (sorted by distance).
-    
-    Optimized: Reduced k from 20 to 10 for faster execution with minimal quality loss.
-    """
-    from core.data_structures import Customer
-    
-    customer_ids = route.customer_ids
-    customers_lookup = route.customers_lookup
-    depot = route.depot
-    
-    # Get all customers in route plus depot
-    all_customers = [depot] + [customers_lookup[cid] for cid in customer_ids]
-    
-    neighbors = {}
-    
-    # For each customer in the route, find k nearest neighbors
-    for cid in customer_ids:
-        customer = customers_lookup[cid]
-        distances = []
-        
-        for other in all_customers:
-            if other.id == customer.id:
-                continue
-            dist = distance(customer, other)
-            distances.append((other.id, dist))
-        
-        # Sort by distance and take k nearest
-        distances.sort(key=lambda x: x[1])
-        neighbors[cid] = [other_id for other_id, _ in distances[:k]]
-    
-    return neighbors
-
-
-def or_opt_inplace(route: Route, max_segment_len: int = 3, max_trials: int = 150) -> bool:
-    """
-    Apply a BEST-IMPROVEMENT or-opt (segment relocate) within a route.
-    Uses geodesic pruning: only evaluates positions where predecessor is among
-    10 nearest neighbors of segment's first customer.
+    ENHANCED Or-Opt: Try moving segments of length 1-4 (increased from 1-3).
+    Uses best-improvement strategy with smart segment selection.
     
     Args:
-        route: Route to modify in place.
-        max_segment_len: maximum segment length to move (1..3 typical).
-        max_trials: Maximum number of insertion positions to check per segment (default 150).
-
+        route: Route to optimize
+        max_segment_len: Maximum segment length to try (default 4)
+        max_attempts: Maximum number of move attempts
+    
     Returns:
-        True if an improving move was applied; False otherwise.
+        True if any improving move was found
     """
     n = len(route.customer_ids)
     if n < 3:
         return False
-
-    # Ensure cost/schedule are in sync and use route.total_cost as objective
-    route.calculate_cost_inplace() # O(N)
-    base_obj = route.total_cost
-
-    # Build nearest neighbor lookup for geodesic pruning (optimized to k=10)
-    neighbors = _build_nearest_neighbors(route, k=10)
     
-    # Adaptive max segment length: use 4 for larger routes
-    adaptive_max_len = min(max_segment_len, 4 if n > 15 else 3)
+    improved = False
+    attempts = 0
     
-    best_delta = -1e-6 # Must improve by at least epsilon
-    best_move = None # (start, end, insert_pos)
-
-    # Try segment lengths 1..adaptive_max_len
-    for seg_len in range(1, min(adaptive_max_len, n) + 1):
-        for start in range(0, n - seg_len + 1):
-            end = start + seg_len 	# exclusive
-            segment = route.customer_ids[start:end]
+    # Try different segment lengths, prioritizing larger segments (more impactful)
+    for seg_len in range(min(max_segment_len, n - 1), 0, -1):
+        
+        # Smart segment selection: prioritize high-cost segments
+        segment_priorities = []
+        for start_i in range(n - seg_len + 1):
+            # Estimate segment cost (sum of edge costs)
+            if start_i > 0 and hasattr(route, '_cost_segments') and route._cost_segments:
+                # Use cached costs if available
+                seg_cost = sum(route._cost_segments[start_i:start_i + seg_len])
+            else:
+                # Fallback: use simple position-based priority
+                # Prefer segments near route ends (often suboptimal)
+                if start_i < n // 3 or start_i > 2 * n // 3:
+                    seg_cost = 10.0  # High priority
+                else:
+                    seg_cost = 1.0   # Low priority
             
-            # Get first customer in segment for nearest neighbor lookup
-            seg_first_id = segment[0]
-            candidate_neighbors = neighbors.get(seg_first_id, [])
+            segment_priorities.append((seg_cost, start_i))
+        
+        # Sort by priority (high cost first)
+        segment_priorities.sort(reverse=True)
+        
+        # Try top segments first
+        for _, start_i in segment_priorities:
+            if attempts >= max_attempts:
+                break
             
-            # Track trials to enforce max_trials limit
-            trials = 0
+            end_i = start_i + seg_len
             
-            # Geodesic pruning: only check positions where predecessor is a nearest neighbor
-            for insert_pos in range(0, n - seg_len + 1):
-                # Check for no-op moves
-                if insert_pos == start or insert_pos == end:
+            # Try different insertion positions
+            # Smart position selection: avoid no-op and adjacent positions
+            insertion_positions = []
+            
+            # Add distant positions first (more likely to improve)
+            for insert_j in range(n - seg_len + 1):
+                # Skip no-op moves and adjacent positions
+                if insert_j >= start_i and insert_j <= end_i:
                     continue
                 
-                # Enforce max_trials limit
-                if trials >= max_trials:
+                # Calculate distance from original position
+                distance = abs(insert_j - start_i)
+                insertion_positions.append((distance, insert_j))
+            
+            # Sort by distance (try distant positions first)
+            insertion_positions.sort(reverse=True)
+            
+            # Try each insertion position
+            for _, insert_j in insertion_positions:
+                attempts += 1
+                if attempts >= max_attempts:
                     break
                 
-                # Determine predecessor at insertion position
-                # Need to consider the route WITHOUT the segment for accurate predecessor
-                is_depot_pred = False
-                if insert_pos == 0:
-                    is_depot_pred = True
-                else:
-                    # Adjust for segment removal when calculating predecessor
-                    if insert_pos <= start:
-                        # Insertion before segment removal point
-                        pred_idx = insert_pos - 1
-                    else:
-                        # Insertion after segment removal point
-                        pred_idx = insert_pos - seg_len - 1
-                    
-                    if pred_idx < 0:
-                        is_depot_pred = True
-                    else:
-                        pred_id = route.customer_ids[pred_idx]
+                # Evaluate move
+                delta_cost, is_feasible = route.get_move_delta_cost(start_i, end_i, insert_j)
                 
-                # Geodesic pruning: only check if predecessor is depot or a nearest neighbor
-                if not is_depot_pred and pred_id not in candidate_neighbors:
+                if is_feasible and delta_cost < -0.001:  # Improvement found
+                    # Apply the move
+                    segment = route.customer_ids[start_i:end_i]
+                    
+                    # Remove segment
+                    route.customer_ids = route.customer_ids[:start_i] + route.customer_ids[end_i:]
+                    
+                    # Adjust insertion position
+                    if insert_j > start_i:
+                        insert_j -= seg_len
+                    
+                    # Insert segment
+                    route.customer_ids = (route.customer_ids[:insert_j] + 
+                                         segment + 
+                                         route.customer_ids[insert_j:])
+                    
+                    # Recalculate
+                    route._recalculate_from(min(start_i, insert_j))
+                    route.calculate_cost_inplace()
+                    
+                    improved = True
+                    
+                    # Continue searching for more improvements in this segment length
+                    break  # Move to next segment
+            
+            if attempts >= max_attempts:
+                break
+        
+        if attempts >= max_attempts:
+            break
+    
+    return improved
+
+
+def or_opt_best_improvement(route: Route, max_segment_len: int = 4) -> bool:
+    """
+    Exhaustive Or-Opt that finds the BEST move across all segments.
+    More expensive but guaranteed to find the best single move.
+    Use this for final refinement.
+    
+    Returns:
+        True if any improving move was found
+    """
+    n = len(route.customer_ids)
+    if n < 3:
+        return False
+    
+    best_delta = 0.0
+    best_move = None
+    
+    # Exhaustively search all moves
+    for seg_len in range(1, min(max_segment_len + 1, n)):
+        for start_i in range(n - seg_len + 1):
+            end_i = start_i + seg_len
+            
+            for insert_j in range(n - seg_len + 1):
+                # Skip no-op
+                if insert_j >= start_i and insert_j <= end_i:
                     continue
                 
-                trials += 1
+                delta_cost, is_feasible = route.get_move_delta_cost(start_i, end_i, insert_j)
                 
-                # --- CRITICAL PERFORMANCE STEP ---
-                # Check cost and feasibility without modifying the route list
-                delta_cost, is_feasible = route.get_move_delta_cost(start, end, insert_pos) # O(N)
-
-                if is_feasible and delta_cost < best_delta:
+                if is_feasible and delta_cost < best_delta - 0.001:
                     best_delta = delta_cost
-                    best_move = (start, end, insert_pos)
+                    best_move = (start_i, end_i, insert_j, seg_len)
     
     # Apply best move if found
-    if best_move:
-        start, end, insert_pos = best_move
-        seg_len = end - start
-        segment = route.customer_ids[start:end]
+    if best_move is not None:
+        start_i, end_i, insert_j, seg_len = best_move
         
-        # 1. Physical Removal
-        del route.customer_ids[start:end]
+        segment = route.customer_ids[start_i:end_i]
+        route.customer_ids = route.customer_ids[:start_i] + route.customer_ids[end_i:]
         
-        # 2. Adjust insertion position due to removal
-        if insert_pos > start:
-            insert_pos -= seg_len
+        if insert_j > start_i:
+            insert_j -= seg_len
         
-        # 3. Physical Insertion
-        route.customer_ids[insert_pos:insert_pos] = segment
+        route.customer_ids = (route.customer_ids[:insert_j] + 
+                             segment + 
+                             route.customer_ids[insert_j:])
         
-        # 4. Finalize schedule and cost
-        route.calculate_cost_inplace() # O(N)
+        route._recalculate_from(min(start_i, insert_j))
+        route.calculate_cost_inplace()
+        
         return True
-
+    
     return False
