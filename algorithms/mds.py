@@ -198,24 +198,28 @@ def selective_mds(solution: Solution,
     if total_customers > 80:
         effective_max_iter = min(max_iterations, 40)  # Slightly increased
     
-    while iteration < effective_max_iter and no_improvement < early_termination and no_best_improvement < 25:
+    # CRITICAL FIX: Increased early termination from 40 to 100
+    # Allow more exploration before giving up
+    while iteration < effective_max_iter and no_improvement < 100 and no_best_improvement < 50:
         iteration += 1
         
         current_state_backup = copy.deepcopy(solution)
         
-        # Perturbation strategy (more aggressive)
-        lns_prob = 0.40 if current_temp > 50 else 0.20  # INCREASED from 0.35/0.15
+        # CRITICAL FIX: More aggressive LNS
+        # Increased probability and removal fraction
+        lns_prob = 0.60 if current_temp > 50 else 0.30  # INCREASED from 0.40/0.20
         if random.random() < lns_prob:
-            removal_frac = 0.25 + (0.15 * random.random())  # Slightly larger removals
+            removal_frac = 0.40 + (0.20 * random.random())  # 40-60% removal (was 25-40%)
             lns_destroy_repair(solution, removal_fraction=removal_frac, random_seed=iteration)
         
-        # Inter-route operators (every 3rd iteration)
+        # CRITICAL FIX: Run inter-route operators EVERY iteration (not every 3rd)
+        # This is crucial for route balancing and fleet reduction
         inter_route_improved = False
-        if len(solution.routes) > 1 and iteration % 3 == 0:
+        if len(solution.routes) > 1:  # Removed iteration % 3 check
             rand_val = random.random()
             
             if rand_val < 0.40:  # More emphasis on 2-opt*
-                if inter_route_2opt_star(solution, max_attempts=100):  # INCREASED from 80
+                if inter_route_2opt_star(solution, max_attempts=200):  # INCREASED from 100
                     inter_route_improved = True
             elif rand_val < 0.70:
                 if inter_route_relocate_inplace(solution, neighbors=global_neighbors):

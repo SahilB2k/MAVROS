@@ -63,6 +63,7 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
         random_seed=42
     )
     
+    
     # CHECKPOINT 1: Construction Integrity
     mih_count = sum(len(r.customer_ids) for r in solution.routes)
     print(f"DEBUG [Checkpoint 1]: MIH constructed solution with {mih_count}/{n} customers.")
@@ -70,13 +71,37 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
     # Capture Initial Stats (Raw costs)
     initial_cost_raw = sum(route.total_cost for route in solution.routes)
     initial_vehicles = len(solution.routes)
+    
+    # ------------------------------------------------------------
+    # PHASE 1.5: ADAPTIVE REPAIR (NEW!)
+    # Dissolve routes with <5 customers and re-insert
+    # ------------------------------------------------------------
+    from algorithms.adaptive_repair import adaptive_repair_phase
+    
+    print(f"\nDEBUG [Phase 1.5]: Running Adaptive Repair...")
+    print(f"  Before repair: {len(solution.routes)} routes, cost={solution.total_base_cost:.2f}")
+    
+    solution = adaptive_repair_phase(
+        solution,
+        min_customers_per_route=5,
+        tolerance=0.05  # 5% time window tolerance
+    )
+    
+    # Verify integrity after repair
+    repair_count = sum(len(r.customer_ids) for r in solution.routes)
+    if repair_count < mih_count:
+        print(f"DEBUG [Warning]: Repair phase dropped {mih_count - repair_count} customers!")
+    
+    print(f"  After repair: {len(solution.routes)} routes, cost={solution.total_base_cost:.2f}")
+
 
     # ------------------------------------------------------------
     # PHASE 2: Multi-Pass Improvement with Aggressive Fleet Reduction
     # ------------------------------------------------------------
     num_passes = 3 if n <= 50 else 5
-    # Increased iteration budget for better optimization
-    total_iters = max_iterations if max_iterations else (100 if n <= 50 else 120)
+    # CRITICAL FIX: Increased iteration budget from 120 to 500
+    # OR-Tools likely runs 1000s of iterations
+    total_iters = max_iterations if max_iterations else (200 if n <= 50 else 500)
     iters_per_pass = total_iters // num_passes
 
     for pass_num in range(num_passes):
@@ -121,6 +146,44 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
         except Exception as e:
             print(f"WARNING: Merge failed with exception {e}; rolling back.")
             solution = pre_merge_solution
+    
+    # ------------------------------------------------------------
+    # PHASE 2.5: FORCE-DISSOLVE TO 3 VEHICLES (R-SERIES ONLY)
+    # DISABLED: Causes inf cost due to infeasible time windows
+    # ------------------------------------------------------------
+    # Detect R-series instances
+    is_r_series = False
+    if hasattr(instance, '__getitem__'):
+        instance_file = instance.get('file', '')
+        if 'r1' in instance_file.lower() or 'r2' in instance_file.lower():
+            is_r_series = True
+    
+    # DISABLED: Force-dissolve creates infeasible solutions
+    # Re-enable when better constraint handling is implemented
+    if False and is_r_series and len(solution.routes) > 3:
+        print(f"\nDEBUG [Phase 2.5]: Force-Dissolve to 3 vehicles (R-series detected)...")
+        print(f"  Current: {len(solution.routes)} vehicles")
+        
+        from algorithms.force_dissolve import force_dissolve_to_target
+        from operators.cross_exchange import cross_exchange
+        
+        # Force-dissolve to 3 vehicles
+        solution = force_dissolve_to_target(
+            solution,
+            target_vehicles=3,
+            time_tolerance=0.10,  # 10% time window relaxation
+            capacity_tolerance=0.05  # 5% capacity relaxation
+        )
+        
+        # Apply cross-exchange to balance time window pressure
+        print(f"  Applying cross-exchange to balance routes...")
+        for _ in range(5):
+            cross_exchange(solution, max_attempts=100)
+        
+        solution.update_cost()
+        print(f"  Force-Dissolve complete: {len(solution.routes)} vehicles, cost={solution.total_base_cost:.2f}")
+
+
     
     # ------------------------------------------------------------
     # PHASE 3: Controlled Fleet Reduction
@@ -225,15 +288,37 @@ def solve_vrptw_with_stats(instance, max_iterations=None, candidate_k=None, alph
     else:
         print(f"\n* SUCCESS: All {n}/{n} customers served. *")
 
+    
     raw_final_cost = sum(route.total_cost for route in solution.routes)
+    
+    # CRITICAL FIX: Add vehicle count penalty (like OR-Tools)
+    # Prioritize minimizing vehicles, then cost
+    vehicle_penalty = len(solution.routes) * 300  # 300 per vehicle
+    penalized_cost = raw_final_cost + vehicle_penalty
+    
+    # Safety check: replace inf with large number for metrics
+    if raw_final_cost == float('inf'):
+        print(f"WARNING: Final cost is inf, setting to 1,000,000 for metrics")
+        raw_final_cost = 1000000.0
+        penalized_cost = 1000000.0
+    
+    if initial_cost_raw == float('inf'):
+        initial_cost_raw = 1000000.0
+    
     improvement_pct = ((initial_cost_raw - raw_final_cost) / initial_cost_raw * 100) if initial_cost_raw > 0 else 0
+    
+    print(f"\nFinal Solution:")
+    print(f"  Distance Cost: {raw_final_cost:.2f}")
+    print(f"  Vehicle Penalty: {vehicle_penalty:.2f} ({len(solution.routes)} vehicles × 300)")
+    print(f"  Total Penalized Cost: {penalized_cost:.2f}")
     
     stats = {
         'initial_cost': float(initial_cost_raw),
         'initial_vehicles': int(initial_vehicles),
         'final_cost': float(raw_final_cost),
         'final_vehicles': int(len(solution.routes)),
-        'improvement_pct': float(improvement_pct)
+        'improvement_pct': float(improvement_pct),
+        'penalized_cost': float(penalized_cost)
     }
     
     return solution, stats

@@ -1,12 +1,213 @@
 """
-FIXED Sequential Insertion - Proven to work
-Simple, robust construction that creates good initial solutions
-Target: Cost ~2000-2200, NOT 10,000+
+Regret-3 Insertion Heuristic for VRPTW
+Ensures initial construction creates <10 routes (not 36!)
+
+Key Features:
+1. Constrained seed selection: max(distance / time_window_width)
+2. Regret-3 insertion: (cost_2nd - cost_1st) + (cost_3rd - cost_1st)
+3. Strict Euclidean distance (no rounding)
 """
 
-import random
+import math
 from typing import List, Dict, Optional, Tuple
-from core.data_structures import Customer, Route, Solution, distance
+from core.data_structures import Customer, Route, Solution
+
+
+def euclidean_distance(c1: Customer, c2: Customer) -> float:
+    """
+    Strict Euclidean distance - NO ROUNDING
+    """
+    dx = c1.x - c2.x
+    dy = c1.y - c2.y
+    return math.sqrt(dx * dx + dy * dy)
+
+
+def select_constrained_seed(unassigned: List[Customer], depot: Customer) -> Customer:
+    """
+    Select most constrained customer for new route seed.
+    
+    Formula: max(distance_to_depot / (due_date - ready_time))
+    
+    Higher score = more constrained (far from depot, tight time window)
+    """
+    best_score = -float('inf')
+    best_customer = None
+    
+    for customer in unassigned:
+        distance = euclidean_distance(depot, customer)
+        time_window_width = customer.due_date - customer.ready_time
+        
+        # Avoid division by zero
+        if time_window_width > 0:
+            score = distance / time_window_width
+        else:
+            score = float('inf')  # Extremely constrained - zero time window
+        
+        if score > best_score:
+            best_score = score
+            best_customer = customer
+    
+    return best_customer
+
+
+def calculate_insertion_cost_strict(
+    route: Route,
+    customer: Customer,
+    position: int
+) -> float:
+    """
+    Calculate insertion cost with STRICT feasibility checking.
+    Returns inf if infeasible.
+    """
+    # Save state
+    old_cost = route.total_cost
+    old_ids = route.customer_ids.copy()
+    old_arrivals = route.arrival_times.copy()
+    old_load = route.current_load
+    
+    # Try insertion
+    if route.insert_inplace(customer.id, position):
+        insertion_cost = route.total_cost - old_cost
+        
+        # Rollback
+        route.customer_ids = old_ids
+        route.arrival_times = old_arrivals
+        route.current_load = old_load
+        route.total_cost = old_cost
+        
+        return insertion_cost
+    else:
+        return float('inf')
+
+
+def regret_3_construction(
+    depot: Customer,
+    customers: List[Customer],
+    vehicle_capacity: int,
+    random_seed: Optional[int] = None
+) -> Solution:
+    """
+    Regret-3 Insertion Heuristic for VRPTW.
+    
+    Algorithm:
+    1. Start first route with most constrained customer
+    2. For each unassigned customer, find top-3 insertion positions
+    3. Calculate Regret-3 = (cost_2 - cost_1) + (cost_3 - cost_1)
+    4. Insert customer with HIGHEST regret first
+    5. Repeat until all customers assigned
+    
+    Target: <10 routes with ~2,500 cost (not 36 routes with 11,930!)
+    """
+    customers_lookup: Dict[int, Customer] = {c.id: c for c in customers}
+    solution = Solution()
+    routes: List[Route] = []
+    unassigned = customers.copy()
+    
+    print(f"  Regret-3: Starting construction for {len(customers)} customers...")
+    
+    # Initialize first route with most constrained customer
+    seed = select_constrained_seed(unassigned, depot)
+    first_route = Route(depot, vehicle_capacity, customers_lookup)
+    first_route.insert_inplace(seed.id, 0)
+    routes.append(first_route)
+    unassigned.remove(seed)
+    
+    print(f"  Regret-3: Initialized first route with customer {seed.id} (constraint score={euclidean_distance(depot, seed)/(seed.due_date - seed.ready_time):.3f})")
+    
+    # Main Regret-3 insertion loop
+    iteration = 0
+    while unassigned:
+        iteration += 1
+        
+        best_customer = None
+        max_regret = -float('inf')
+        best_insertion = None  # (cost, route, position)
+        
+        # For each unassigned customer
+        for customer in unassigned:
+            # Find top-3 insertion positions across ALL routes
+            insertion_options = []  # (cost, route, position)
+            
+            for route in routes:
+                n = len(route.customer_ids)
+                for pos in range(n + 1):
+                    cost = calculate_insertion_cost_strict(route, customer, pos)
+                    if cost < float('inf'):
+                        insertion_options.append((cost, route, pos))
+            
+            # Sort by cost (ascending)
+            insertion_options.sort(key=lambda x: x[0])
+            
+            # Calculate Regret-3
+            if len(insertion_options) >= 3:
+                cost_1 = insertion_options[0][0]
+                cost_2 = insertion_options[1][0]
+                cost_3 = insertion_options[2][0]
+                regret = (cost_2 - cost_1) + (cost_3 - cost_1)
+            elif len(insertion_options) == 2:
+                cost_1 = insertion_options[0][0]
+                cost_2 = insertion_options[1][0]
+                regret = 2.0 * (cost_2 - cost_1)  # Penalize limited options
+            elif len(insertion_options) == 1:
+                regret = float('inf')  # Only one option - VERY high priority
+            else:
+                regret = float('inf')  # No feasible insertion - must create new route
+            
+            # Track customer with highest regret
+            if regret > max_regret:
+                max_regret = regret
+                best_customer = customer
+                if insertion_options:
+                    best_insertion = insertion_options[0]
+                else:
+                    best_insertion = None
+        
+        # Insert customer with highest regret
+        if best_customer is None:
+            break  # Should never happen
+        
+        if best_insertion is not None:
+            # Insert into existing route
+            cost, route, pos = best_insertion
+            success = route.insert_inplace(best_customer.id, pos)
+            if success:
+                unassigned.remove(best_customer)
+            else:
+                # Fallback: create new route
+                new_route = Route(depot, vehicle_capacity, customers_lookup)
+                new_route.insert_inplace(best_customer.id, 0)
+                routes.append(new_route)
+                unassigned.remove(best_customer)
+        else:
+            # No feasible insertion - create new route with constrained seed
+            seed = select_constrained_seed([best_customer], depot)
+            new_route = Route(depot, vehicle_capacity, customers_lookup)
+            new_route.insert_inplace(seed.id, 0)
+            routes.append(new_route)
+            unassigned.remove(seed)
+        
+        # Progress reporting
+        if iteration % 20 == 0:
+            print(f"    Iteration {iteration}: {len(unassigned)} customers remaining, {len(routes)} routes")
+    
+    # Build solution
+    for route in routes:
+        if route.customer_ids:
+            solution.add_route(route)
+    
+    solution.update_cost()
+    
+    # Validation
+    print(f"  Regret-3: Constructed solution with {len(solution.routes)} routes, cost={solution.total_base_cost:.2f}")
+    
+    # Check route sizes
+    route_sizes = [len(r.customer_ids) for r in solution.routes]
+    print(f"  Regret-3: Route sizes: min={min(route_sizes)}, max={max(route_sizes)}, avg={sum(route_sizes)/len(route_sizes):.1f}")
+    
+    if len(solution.routes) > 10:
+        print(f"  WARNING: Created {len(solution.routes)} routes (target: <10). Adaptive repair needed!")
+    
+    return solution
 
 
 def limited_candidate_mih(
@@ -18,205 +219,9 @@ def limited_candidate_mih(
     random_seed: Optional[int] = None
 ) -> Solution:
     """
-    COMPLETELY REWRITTEN - Simple, proven sequential insertion
-    
-    Algorithm:
-    1. Sort customers by (due_date, distance_from_depot) - prioritize urgent + close
-    2. For each customer, try inserting in ALL existing routes
-    3. Only open new route if absolutely necessary (strict penalty)
-    4. Use best insertion position (cheapest cost)
+    Wrapper for compatibility - calls Regret-3 construction
     """
-    
-    if random_seed is not None:
-        random.seed(random_seed)
-
-    customers_lookup: Dict[int, Customer] = {c.id: c for c in customers}
-    
-    # CRITICAL FIX 1: Sort by urgency + distance (not random!)
-    # This creates natural route clusters
-    customers_sorted = sorted(
-        customers, 
-        key=lambda c: (c.due_date, distance(depot, c))
-    )
-    
-    solution = Solution()
-    routes: List[Route] = []
-    
-    # CRITICAL FIX 2: Process customers in sorted order (no random shuffling!)
-    for customer in customers_sorted:
-        best_insertion = None
-        best_cost = float('inf')
-        
-        # Try inserting into ALL existing routes at ALL positions
-        for route in routes:
-            n = len(route.customer_ids)
-            for pos in range(n + 1):
-                # Calculate TRUE insertion cost
-                cost = calculate_true_insertion_cost(route, customer, pos)
-                
-                if cost < best_cost:
-                    best_cost = cost
-                    best_insertion = (route, pos, False)  # False = not new route
-        
-        # Try opening a new route with HIGH penalty
-        if len(routes) > 0:
-            new_route_cost = distance(depot, customer) + distance(customer, depot)
-            # CRITICAL FIX 3: Strong penalty to discourage unnecessary vehicles
-            # Average route length is typically 50-100, so 1000 is strong deterrent
-            new_route_cost_penalized = new_route_cost + 1000.0
-            
-            if new_route_cost_penalized < best_cost:
-                new_route = Route(depot, vehicle_capacity, customers_lookup)
-                best_insertion = (new_route, 0, True)  # True = new route
-                best_cost = new_route_cost_penalized
-        else:
-            # First customer - must open first route
-            new_route = Route(depot, vehicle_capacity, customers_lookup)
-            best_insertion = (new_route, 0, True)
-        
-        # Perform insertion
-        if best_insertion is not None:
-            target_route, pos, is_new = best_insertion
-            
-            if is_new:
-                routes.append(target_route)
-            
-            success = target_route.insert_inplace(customer.id, pos)
-            
-            if not success:
-                # Emergency fallback: force into dedicated route
-                fallback = Route(depot, vehicle_capacity, customers_lookup)
-                fallback.customer_ids = [customer.id]
-                fallback.current_load = customer.demand
-                fallback.departure_time = 0.0
-                fallback.calculate_cost_inplace()
-                routes.append(fallback)
-        else:
-            # Should never happen, but safety net
-            fallback = Route(depot, vehicle_capacity, customers_lookup)
-            fallback.customer_ids = [customer.id]
-            fallback.current_load = customer.demand
-            fallback.departure_time = 0.0
-            fallback.calculate_cost_inplace()
-            routes.append(fallback)
-    
-    # Build final solution
-    for route in routes:
-        if route.customer_ids:
-            solution.add_route(route)
-    
-    solution.update_cost()
-    
-    # CRITICAL FIX 4: Validate solution quality
-    if solution.total_base_cost > 5000:
-        print(f"WARNING: Initial solution cost is {solution.total_base_cost:.2f}")
-        print(f"  This suggests construction issues. Expected: ~2000-2500")
-        print(f"  Number of routes: {len(solution.routes)}")
-        print(f"  Average route cost: {solution.total_base_cost / len(solution.routes):.2f}")
-    
-    return solution
-
-
-def calculate_true_insertion_cost(route: Route, customer: Customer, position: int) -> float:
-    """
-    Calculate TRUE insertion cost with proper feasibility checks
-    Returns float('inf') if insertion is infeasible
-    """
-    
-    # Check 1: Capacity
-    if route.current_load + customer.demand > route.vehicle_capacity:
-        return float('inf')
-    
-    n = len(route.customer_ids)
-    
-    # Check 2: Time window feasibility
-    # We need to check if inserting here breaks time windows
-    
-    # Calculate arrival time at customer
-    if n == 0:
-        # Empty route
-        travel_time = distance(route.depot, customer)
-        arrival = route.departure_time + travel_time
-    elif position == 0:
-        # Insert at beginning
-        travel_time = distance(route.depot, customer)
-        arrival = route.departure_time + travel_time
-    else:
-        # Insert after position-1
-        prev_customer = route.get_customer(position - 1)
-        
-        # Get departure time from previous customer
-        if position - 1 < len(route.arrival_times):
-            prev_arrival = route.arrival_times[position - 1]
-        else:
-            # Need to calculate
-            prev_arrival = route.departure_time + distance(route.depot, prev_customer)
-            prev_arrival = max(prev_arrival, prev_customer.ready_time)
-        
-        departure_from_prev = prev_arrival + prev_customer.service_time
-        travel_time = distance(prev_customer, customer)
-        arrival = departure_from_prev + travel_time
-    
-    # Apply waiting if arriving early
-    arrival = max(arrival, customer.ready_time)
-    
-    # Check if violates due date
-    if arrival > customer.due_date:
-        return float('inf')
-    
-    # Check 3: Does insertion break NEXT customer's time window?
-    if position < n:
-        next_customer = route.get_customer(position)
-        departure_from_new = arrival + customer.service_time
-        travel_to_next = distance(customer, next_customer)
-        next_arrival = departure_from_new + travel_to_next
-        next_arrival = max(next_arrival, next_customer.ready_time)
-        
-        if next_arrival > next_customer.due_date:
-            return float('inf')
-    
-    # Calculate cost (edge changes only)
-    if n == 0:
-        # Empty route: depot -> customer -> depot
-        cost = distance(route.depot, customer) + distance(customer, route.depot)
-    elif position == 0:
-        # Insert at start: depot -> customer -> old_first
-        next_customer = route.get_customer(0)
-        old_edge = distance(route.depot, next_customer)
-        new_edges = distance(route.depot, customer) + distance(customer, next_customer)
-        cost = new_edges - old_edge
-    elif position == n:
-        # Insert at end: old_last -> customer -> depot
-        prev_customer = route.get_customer(-1)
-        old_edge = distance(prev_customer, route.depot)
-        new_edges = distance(prev_customer, customer) + distance(customer, route.depot)
-        cost = new_edges - old_edge
-    else:
-        # Insert in middle: prev -> customer -> next
-        prev_customer = route.get_customer(position - 1)
-        next_customer = route.get_customer(position)
-        old_edge = distance(prev_customer, next_customer)
-        new_edges = distance(prev_customer, customer) + distance(customer, next_customer)
-        cost = new_edges - old_edge
-    
-    # Add waiting time cost (if any)
-    if position == 0:
-        travel_time = distance(route.depot, customer)
-        raw_arrival = route.departure_time + travel_time
-    else:
-        prev_customer = route.get_customer(position - 1)
-        if position - 1 < len(route.arrival_times):
-            prev_departure = route.arrival_times[position - 1] + prev_customer.service_time
-        else:
-            prev_departure = route.departure_time + distance(route.depot, prev_customer) + prev_customer.service_time
-        
-        travel_time = distance(prev_customer, customer)
-        raw_arrival = prev_departure + travel_time
-    
-    waiting = max(0.0, customer.ready_time - raw_arrival)
-    cost += waiting * 1.1  # Waiting penalty
-    
-    return cost
+    return regret_3_construction(depot, customers, vehicle_capacity, random_seed)
 
 
 def enhanced_mih_construction(
@@ -226,6 +231,6 @@ def enhanced_mih_construction(
     random_seed: Optional[int] = None
 ) -> Solution:
     """
-    Alias for compatibility - calls the fixed version
+    Alias for compatibility - calls Regret-3 construction
     """
-    return limited_candidate_mih(depot, customers, vehicle_capacity, random_seed=random_seed)
+    return regret_3_construction(depot, customers, vehicle_capacity, random_seed)

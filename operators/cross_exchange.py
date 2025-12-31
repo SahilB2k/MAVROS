@@ -6,7 +6,7 @@ Swaps segments between two routes for better route configurations.
 from core.data_structures import Solution
 import copy
 
-def cross_exchange(solution: Solution, max_attempts: int = 50) -> bool:
+def cross_exchange(solution: Solution, max_attempts: int = 150) -> bool:
     """
     Perform cross-exchange moves between route pairs.
     

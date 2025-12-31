@@ -48,7 +48,8 @@ def run_experiment(instance_file: str, max_customers: int = None,
     instance_dict = {
         'depot': depot,
         'customers': customers,
-        'vehicle_capacity': vehicle_capacity
+        'vehicle_capacity': vehicle_capacity,
+        'file': instance_file  # For R-series detection
     }
 
     # Solve

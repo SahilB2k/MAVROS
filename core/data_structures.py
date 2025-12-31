@@ -247,9 +247,10 @@ class Route:
 
             arrival_times[i] = arrival
             
-            # CRITICAL: Waiting time penalty increased 1.1 -> 1.3
-            # This discourages solutions with excessive waiting (main cost driver)
-            segment_cost = travel + (wait * 1.3)
+            # CRITICAL FIX: Removed waiting time penalty (was 1.3x)
+            # Waiting is FREE - only distance matters (like OR-Tools)
+            # This allows route consolidation without penalty
+            segment_cost = travel  # No waiting penalty!
             self._cost_segments[i] = segment_cost
             total_cost += segment_cost
 
