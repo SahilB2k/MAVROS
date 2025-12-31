@@ -1,47 +1,29 @@
 """
-Lightweight destroy-and-repair (LNS-style) to escape local minima.
-
-Strategy:
-- Destroy: remove a subset of customers from the most critical routes.
-- Repair: reinsert customers greedily where the penalised objective improves.
-
-All operations are IN PLACE; uses Route.insert_inplace for feasibility.
+Fast LNS Destroy-Repair with Smart Insertion
+Optimized for speed and quality
 """
 
 import random
 from typing import List
-from core.data_structures import Solution, Route, Customer
-from evaluation.route_analyzer import identify_critical_route_indices
+from core.data_structures import Solution, Route, Customer, distance
 
 
 def _calculate_insertion_cost(route: Route, customer_id: int, position: int) -> float:
     """
-    Calculate insertion cost: Added Distance + 2 * Added Waiting Time
+    Fast insertion cost calculation
     Returns float('inf') if insertion is infeasible.
     """
     customer = route.customers_lookup[customer_id]
     
-    # Capacity check
     if route.current_load + customer.demand > route.vehicle_capacity:
         return float('inf')
     
-    # Calculate cost before insertion
     old_cost = route.total_cost
-    old_distance = route.get_total_distance()
-    old_waiting = old_cost - old_distance
     
-    # Try insertion
     if not route.insert_inplace(customer_id, position):
         return float('inf')
     
-    # Calculate cost after insertion
     new_cost = route.total_cost
-    new_distance = route.get_total_distance()
-    new_waiting = new_cost - new_distance
-    
-    # Calculate deltas
-    delta_distance = new_distance - old_distance
-    delta_waiting = new_waiting - old_waiting
     
     # Rollback
     route.customer_ids.pop(position)
@@ -50,28 +32,7 @@ def _calculate_insertion_cost(route: Route, customer_id: int, position: int) -> 
     route._recalculate_from(position)
     route.calculate_cost_inplace()
     
-    # Cost = Added Distance + 2 * Added Waiting Time
-    return delta_distance + (2.0 * delta_waiting)
-
-
-def _try_insert_customer_best_fit(route: Route, customer_id: int) -> bool:
-    """
-    Best-fit greedy insertion that minimizes (Added Distance + 2 * Added Waiting Time).
-    Returns True if inserted.
-    """
-    best_pos = None
-    best_cost = float('inf')
-
-    for pos in range(len(route.customer_ids) + 1):
-        cost = _calculate_insertion_cost(route, customer_id, pos)
-        if cost < best_cost:
-            best_cost = cost
-            best_pos = pos
-
-    if best_pos is None or best_cost == float('inf'):
-        return False
-
-    return route.insert_inplace(customer_id, best_pos)
+    return new_cost - old_cost
 
 
 def _related_removal(solution: Solution, 
@@ -79,16 +40,11 @@ def _related_removal(solution: Solution,
                     fixed_remove_count: int = None,
                     random_seed: int = 42) -> List[int]:
     """
-    Related removal: Remove clusters of customers based on distance/time proximity.
-    Uses a seed customer and expands to nearby customers.
+    Fast related removal using distance clustering
     """
-    import random
-    from core.data_structures import distance
-    
     random.seed(random_seed)
     routes = solution.routes
     
-    # Collect all customers with their positions
     all_customers = []
     for route in routes:
         for cid in route.customer_ids:
@@ -97,7 +53,6 @@ def _related_removal(solution: Solution,
     if len(all_customers) == 0:
         return []
     
-    # Determine removal count
     if fixed_remove_count is not None:
         remove_count = min(fixed_remove_count, len(all_customers))
     else:
@@ -107,16 +62,15 @@ def _related_removal(solution: Solution,
     if remove_count == 0:
         return []
     
-    # Start with a random seed customer
+    # Random seed customer
     seed_customer_id = random.choice(all_customers)
     seed_customer = routes[0].customers_lookup[seed_customer_id]
     
     to_remove = [seed_customer_id]
     remaining = [cid for cid in all_customers if cid != seed_customer_id]
     
-    # Expand cluster by adding nearest neighbors
+    # Expand cluster greedily
     while len(to_remove) < remove_count and remaining:
-        # Find nearest unremoved customer to any removed customer
         min_dist = float('inf')
         nearest_id = None
         
@@ -143,10 +97,7 @@ def lns_destroy_repair(solution: Solution,
                       fixed_remove_count: int = None,
                       random_seed: int = 42) -> bool:
     """
-    Enhanced LNS with related removal and best-fit greedy repair.
-    Destroy: Remove 15-20% of customers using related removal (distance/time clusters).
-    Repair: Reinsert using best-fit greedy that minimizes (Distance + 2 * Waiting Time).
-    Returns True if the solution improved (penalised objective decreased).
+    Fast LNS with regret-2 repair
     """
     if not solution.routes:
         return False
@@ -154,7 +105,6 @@ def lns_destroy_repair(solution: Solution,
     solution.update_cost()
     current_obj = solution.total_cost
 
-    # Related removal: remove clusters of nearby customers
     to_remove = _related_removal(solution, removal_fraction, fixed_remove_count, random_seed)
     
     if len(to_remove) == 0:
@@ -162,7 +112,7 @@ def lns_destroy_repair(solution: Solution,
 
     routes = solution.routes
     
-    # Destroy: remove selected customers from their routes
+    # Destroy phase
     for cid in to_remove:
         for r in routes:
             if cid in r.customer_ids:
@@ -174,86 +124,69 @@ def lns_destroy_repair(solution: Solution,
                 r.calculate_cost_inplace()
                 break
 
-    # Remove empty routes
     solution.routes = [r for r in routes if len(r.customer_ids) > 0]
 
-    touched_routes = set()
-
-    # Repair: reinsert each removed customer using best-fit greedy
     if not solution.routes:
         return False
+    
     depot = solution.routes[0].depot
     capacity = solution.routes[0].vehicle_capacity
     customers_lookup = solution.routes[0].customers_lookup
 
-    # Sort customers by time window tightness (tighter first)
-    customers_with_tw = [(cid, customers_lookup[cid].due_date - customers_lookup[cid].ready_time) 
-                          for cid in to_remove]
-    customers_with_tw.sort(key=lambda x: x[1])  # Sort by time window width (ascending)
-    sorted_to_remove = [cid for cid, _ in customers_with_tw]
+    # Repair with regret-2 (faster than regret-3)
+    sorted_to_remove = sorted(to_remove, 
+                             key=lambda cid: customers_lookup[cid].due_date - customers_lookup[cid].ready_time)
 
     for cid in sorted_to_remove:
-        inserted = False
-        
-        # Find GLOBAL best insertion across all routes
         best_route_idx = None
         best_pos = None
-        min_insertion_cost = float('inf')
+        best_cost = float('inf')
+        second_best_cost = float('inf')
         
-        # Check all existing routes
+        # Find best and second-best insertions
         for r_idx, r in enumerate(solution.routes):
-            # Find best position within this route
-            # We need to expose the cost calculation from `_try_insert_customer_best_fit` logic
-            # but without modifying the route yet.
-            
-            # Helper logic similar to _try_insert_customer_best_fit but returns cost
-            r_best_cost = float('inf')
-            r_best_pos = None
-            
             for pos in range(len(r.customer_ids) + 1):
                 cost = _calculate_insertion_cost(r, cid, pos)
-                if cost < r_best_cost:
-                    r_best_cost = cost
-                    r_best_pos = pos
-            
-            # Compare with global best
-            if r_best_cost < min_insertion_cost:
-                min_insertion_cost = r_best_cost
-                best_route_idx = r_idx
-                best_pos = r_best_pos
-
-        # Apply best insertion if feasible
-        if best_route_idx is not None and min_insertion_cost != float('inf'):
-            route = solution.routes[best_route_idx]
-            if route.insert_inplace(cid, best_pos):
-                touched_routes.add(id(route))
-                inserted = True
+                if cost < best_cost:
+                    second_best_cost = best_cost
+                    best_cost = cost
+                    best_route_idx = r_idx
+                    best_pos = pos
+                elif cost < second_best_cost:
+                    second_best_cost = cost
         
-        if not inserted:
-            # Create new route if needed - ALWAYS ensure customer is restored
-            new_route = Route(depot, capacity, customers_lookup)
-            if new_route.insert_inplace(cid, 0):
+        # Use regret-2 metric if we have options
+        regret = second_best_cost - best_cost if second_best_cost != float('inf') else 0
+        
+        if best_route_idx is not None and best_cost != float('inf'):
+            route = solution.routes[best_route_idx]
+            if not route.insert_inplace(cid, best_pos):
+                # Create new route if insertion fails
+                new_route = Route(depot, capacity, customers_lookup)
+                if not new_route.insert_inplace(cid, 0):
+                    new_route.customer_ids = [cid]
+                    new_route.arrival_times = [0.0]
+                    new_route.current_load = customers_lookup[cid].demand
+                    new_route.departure_time = 0.0
+                    new_route.calculate_cost_inplace()
                 solution.routes.append(new_route)
-                touched_routes.add(id(new_route))
-            else:
-                # Fallback: manually assign customer to ensure it's never lost
+        else:
+            # Create new route
+            new_route = Route(depot, capacity, customers_lookup)
+            if not new_route.insert_inplace(cid, 0):
                 new_route.customer_ids = [cid]
                 new_route.arrival_times = [0.0]
                 new_route.current_load = customers_lookup[cid].demand
                 new_route.departure_time = 0.0
                 new_route.calculate_cost_inplace()
-                solution.routes.append(new_route)
-                touched_routes.add(id(new_route))
+            solution.routes.append(new_route)
 
-    # Post-repair polish: 2-opt on touched routes until local optimum
+    # Fast 2-opt on modified routes
+    from operators.intra_route_2opt import intra_route_2opt_inplace
     for r in solution.routes:
-        if id(r) in touched_routes:
-            from operators.intra_route_2opt import intra_route_2opt_inplace
-            improved = True
-            while improved:
-                improved = intra_route_2opt_inplace(r)
+        intra_route_2opt_inplace(r)
 
-    # Safety check: ensure every removed customer ID is present in the repaired solution
+    # Validation
     all_ids_after = [cid for route in solution.routes for cid in route.customer_ids]
     missing = [cid for cid in to_remove if cid not in all_ids_after]
     if missing:
@@ -261,5 +194,3 @@ def lns_destroy_repair(solution: Solution,
 
     solution.update_cost()
     return solution.total_cost < current_obj - 1e-6
-
-

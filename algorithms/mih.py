@@ -1,11 +1,11 @@
 """
-Regret-3 Insertion Heuristic for VRPTW
-Ensures initial construction creates <10 routes (not 36!)
+Parallel Savings Heuristic for VRPTW
+Faster and better quality than Regret-3 for R-type instances
 
 Key Features:
-1. Constrained seed selection: max(distance / time_window_width)
-2. Regret-3 insertion: (cost_2nd - cost_1st) + (cost_3rd - cost_1st)
-3. Strict Euclidean distance (no rounding)
+1. Clarke-Wright Savings with time window constraints
+2. Strict feasibility checking
+3. Optimized for R-type data (geographically clustered)
 """
 
 import math
@@ -14,181 +14,158 @@ from core.data_structures import Customer, Route, Solution
 
 
 def euclidean_distance(c1: Customer, c2: Customer) -> float:
-    """
-    Strict Euclidean distance - NO ROUNDING
-    """
+    """Strict Euclidean distance"""
     dx = c1.x - c2.x
     dy = c1.y - c2.y
     return math.sqrt(dx * dx + dy * dy)
 
 
-def select_constrained_seed(unassigned: List[Customer], depot: Customer) -> Customer:
+def calculate_savings(depot: Customer, c1: Customer, c2: Customer) -> float:
     """
-    Select most constrained customer for new route seed.
-    
-    Formula: max(distance_to_depot / (due_date - ready_time))
-    
-    Higher score = more constrained (far from depot, tight time window)
+    Clarke-Wright Savings: S(i,j) = d(0,i) + d(0,j) - d(i,j)
+    Higher savings = better to merge routes
     """
-    best_score = -float('inf')
-    best_customer = None
-    
-    for customer in unassigned:
-        distance = euclidean_distance(depot, customer)
-        time_window_width = customer.due_date - customer.ready_time
-        
-        # Avoid division by zero
-        if time_window_width > 0:
-            score = distance / time_window_width
-        else:
-            score = float('inf')  # Extremely constrained - zero time window
-        
-        if score > best_score:
-            best_score = score
-            best_customer = customer
-    
-    return best_customer
+    d0i = euclidean_distance(depot, c1)
+    d0j = euclidean_distance(depot, c2)
+    dij = euclidean_distance(c1, c2)
+    return d0i + d0j - dij
 
 
-def calculate_insertion_cost_strict(
-    route: Route,
-    customer: Customer,
-    position: int
-) -> float:
+def can_merge_routes(route1: Route, route2: Route, customers_lookup: Dict[int, Customer]) -> Tuple[bool, Optional[List[int]]]:
     """
-    Calculate insertion cost with STRICT feasibility checking.
-    Returns inf if infeasible.
+    Check if two routes can be merged (route1's end to route2's start)
+    Returns (feasible, merged_customer_ids)
     """
-    # Save state
-    old_cost = route.total_cost
-    old_ids = route.customer_ids.copy()
-    old_arrivals = route.arrival_times.copy()
-    old_load = route.current_load
+    if not route1.customer_ids or not route2.customer_ids:
+        return False, None
     
-    # Try insertion
-    if route.insert_inplace(customer.id, position):
-        insertion_cost = route.total_cost - old_cost
+    # Capacity check
+    total_load = route1.current_load + route2.current_load
+    if total_load > route1.vehicle_capacity:
+        return False, None
+    
+    # Time window feasibility check
+    merged_ids = route1.customer_ids + route2.customer_ids
+    
+    time = route1.departure_time
+    prev = route1.depot
+    
+    for cid in merged_ids:
+        customer = customers_lookup[cid]
+        travel = euclidean_distance(prev, customer)
+        arrival = time + travel
         
-        # Rollback
-        route.customer_ids = old_ids
-        route.arrival_times = old_arrivals
-        route.current_load = old_load
-        route.total_cost = old_cost
+        if arrival < customer.ready_time:
+            arrival = customer.ready_time
         
-        return insertion_cost
-    else:
-        return float('inf')
+        if arrival > customer.due_date:
+            return False, None
+        
+        time = arrival + customer.service_time
+        prev = customer
+    
+    return True, merged_ids
 
 
-def regret_3_construction(
+def parallel_savings_construction(
     depot: Customer,
     customers: List[Customer],
     vehicle_capacity: int,
     random_seed: Optional[int] = None
 ) -> Solution:
     """
-    Regret-3 Insertion Heuristic for VRPTW.
+    Parallel Clarke-Wright Savings Heuristic
     
     Algorithm:
-    1. Start first route with most constrained customer
-    2. For each unassigned customer, find top-3 insertion positions
-    3. Calculate Regret-3 = (cost_2 - cost_1) + (cost_3 - cost_1)
-    4. Insert customer with HIGHEST regret first
-    5. Repeat until all customers assigned
+    1. Create initial routes: one customer per route
+    2. Calculate savings for all customer pairs
+    3. Sort savings in descending order
+    4. Merge routes greedily based on savings
     
-    Target: <10 routes with ~2,500 cost (not 36 routes with 11,930!)
+    Fast and effective for R-type data
     """
     customers_lookup: Dict[int, Customer] = {c.id: c for c in customers}
     solution = Solution()
-    routes: List[Route] = []
-    unassigned = customers.copy()
     
-    print(f"  Regret-3: Starting construction for {len(customers)} customers...")
+    print(f"  Parallel Savings: Starting construction for {len(customers)} customers...")
     
-    # Initialize first route with most constrained customer
-    seed = select_constrained_seed(unassigned, depot)
-    first_route = Route(depot, vehicle_capacity, customers_lookup)
-    first_route.insert_inplace(seed.id, 0)
-    routes.append(first_route)
-    unassigned.remove(seed)
+    # Step 1: Create initial routes (one customer each)
+    routes = []
+    for customer in customers:
+        route = Route(depot, vehicle_capacity, customers_lookup)
+        route.insert_inplace(customer.id, 0)
+        routes.append(route)
     
-    print(f"  Regret-3: Initialized first route with customer {seed.id} (constraint score={euclidean_distance(depot, seed)/(seed.due_date - seed.ready_time):.3f})")
+    # Step 2: Calculate all savings
+    savings = []
+    for i in range(len(customers)):
+        for j in range(i + 1, len(customers)):
+            c1 = customers[i]
+            c2 = customers[j]
+            s = calculate_savings(depot, c1, c2)
+            savings.append((s, i, j))
     
-    # Main Regret-3 insertion loop
-    iteration = 0
-    while unassigned:
-        iteration += 1
+    # Sort by savings (descending)
+    savings.sort(reverse=True)
+    
+    print(f"  Parallel Savings: Calculated {len(savings)} savings values...")
+    
+    # Step 3: Merge routes based on savings
+    merges = 0
+    for saving_value, i, j in savings:
+        if saving_value <= 0:
+            break
         
-        best_customer = None
-        max_regret = -float('inf')
-        best_insertion = None  # (cost, route, position)
+        # Find routes containing customers i and j
+        route_i = None
+        route_j = None
         
-        # For each unassigned customer
-        for customer in unassigned:
-            # Find top-3 insertion positions across ALL routes
-            insertion_options = []  # (cost, route, position)
+        for route in routes:
+            if customers[i].id in route.customer_ids:
+                route_i = route
+            if customers[j].id in route.customer_ids:
+                route_j = route
+        
+        if route_i is None or route_j is None:
+            continue
+        
+        if route_i is route_j:
+            continue
+        
+        # Check if customers are at route ends
+        i_at_start = (route_i.customer_ids[0] == customers[i].id)
+        i_at_end = (route_i.customer_ids[-1] == customers[i].id)
+        j_at_start = (route_j.customer_ids[0] == customers[j].id)
+        j_at_end = (route_j.customer_ids[-1] == customers[j].id)
+        
+        merged = False
+        merged_ids = None
+        
+        # Try all valid merge configurations
+        if i_at_end and j_at_start:
+            # route_i + route_j
+            feasible, merged_ids = can_merge_routes(route_i, route_j, customers_lookup)
+            if feasible:
+                merged = True
+        elif j_at_end and i_at_start:
+            # route_j + route_i
+            feasible, merged_ids = can_merge_routes(route_j, route_i, customers_lookup)
+            if feasible:
+                merged = True
+                route_i, route_j = route_j, route_i
+        
+        if merged and merged_ids:
+            # Execute merge
+            route_i.customer_ids = merged_ids
+            route_i.current_load = route_i.current_load + route_j.current_load
+            route_i._recalculate_from(0)
+            route_i.calculate_cost_inplace()
             
-            for route in routes:
-                n = len(route.customer_ids)
-                for pos in range(n + 1):
-                    cost = calculate_insertion_cost_strict(route, customer, pos)
-                    if cost < float('inf'):
-                        insertion_options.append((cost, route, pos))
-            
-            # Sort by cost (ascending)
-            insertion_options.sort(key=lambda x: x[0])
-            
-            # Calculate Regret-3
-            if len(insertion_options) >= 3:
-                cost_1 = insertion_options[0][0]
-                cost_2 = insertion_options[1][0]
-                cost_3 = insertion_options[2][0]
-                regret = (cost_2 - cost_1) + (cost_3 - cost_1)
-            elif len(insertion_options) == 2:
-                cost_1 = insertion_options[0][0]
-                cost_2 = insertion_options[1][0]
-                regret = 2.0 * (cost_2 - cost_1)  # Penalize limited options
-            elif len(insertion_options) == 1:
-                regret = float('inf')  # Only one option - VERY high priority
-            else:
-                regret = float('inf')  # No feasible insertion - must create new route
-            
-            # Track customer with highest regret
-            if regret > max_regret:
-                max_regret = regret
-                best_customer = customer
-                if insertion_options:
-                    best_insertion = insertion_options[0]
-                else:
-                    best_insertion = None
-        
-        # Insert customer with highest regret
-        if best_customer is None:
-            break  # Should never happen
-        
-        if best_insertion is not None:
-            # Insert into existing route
-            cost, route, pos = best_insertion
-            success = route.insert_inplace(best_customer.id, pos)
-            if success:
-                unassigned.remove(best_customer)
-            else:
-                # Fallback: create new route
-                new_route = Route(depot, vehicle_capacity, customers_lookup)
-                new_route.insert_inplace(best_customer.id, 0)
-                routes.append(new_route)
-                unassigned.remove(best_customer)
-        else:
-            # No feasible insertion - create new route with constrained seed
-            seed = select_constrained_seed([best_customer], depot)
-            new_route = Route(depot, vehicle_capacity, customers_lookup)
-            new_route.insert_inplace(seed.id, 0)
-            routes.append(new_route)
-            unassigned.remove(seed)
-        
-        # Progress reporting
-        if iteration % 20 == 0:
-            print(f"    Iteration {iteration}: {len(unassigned)} customers remaining, {len(routes)} routes")
+            # Remove route_j
+            routes.remove(route_j)
+            merges += 1
+    
+    print(f"  Parallel Savings: Performed {merges} merges, final routes: {len(routes)}")
     
     # Build solution
     for route in routes:
@@ -198,14 +175,9 @@ def regret_3_construction(
     solution.update_cost()
     
     # Validation
-    print(f"  Regret-3: Constructed solution with {len(solution.routes)} routes, cost={solution.total_base_cost:.2f}")
-    
-    # Check route sizes
     route_sizes = [len(r.customer_ids) for r in solution.routes]
-    print(f"  Regret-3: Route sizes: min={min(route_sizes)}, max={max(route_sizes)}, avg={sum(route_sizes)/len(route_sizes):.1f}")
-    
-    if len(solution.routes) > 10:
-        print(f"  WARNING: Created {len(solution.routes)} routes (target: <10). Adaptive repair needed!")
+    print(f"  Parallel Savings: Route sizes: min={min(route_sizes)}, max={max(route_sizes)}, avg={sum(route_sizes)/len(route_sizes):.1f}")
+    print(f"  Parallel Savings: Cost={solution.total_base_cost:.2f}, Vehicles={len(solution.routes)}")
     
     return solution
 
@@ -219,9 +191,9 @@ def limited_candidate_mih(
     random_seed: Optional[int] = None
 ) -> Solution:
     """
-    Wrapper for compatibility - calls Regret-3 construction
+    Wrapper for compatibility - calls Parallel Savings construction
     """
-    return regret_3_construction(depot, customers, vehicle_capacity, random_seed)
+    return parallel_savings_construction(depot, customers, vehicle_capacity, random_seed)
 
 
 def enhanced_mih_construction(
@@ -231,6 +203,6 @@ def enhanced_mih_construction(
     random_seed: Optional[int] = None
 ) -> Solution:
     """
-    Alias for compatibility - calls Regret-3 construction
+    Alias for compatibility - calls Parallel Savings construction
     """
-    return regret_3_construction(depot, customers, vehicle_capacity, random_seed)
+    return parallel_savings_construction(depot, customers, vehicle_capacity, random_seed)

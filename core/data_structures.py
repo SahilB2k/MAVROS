@@ -64,7 +64,7 @@ class Route:
         self.vehicle_capacity: int = vehicle_capacity
         self._dist_cache: Dict[Tuple[int, int], float] = {}
         self.bbox: Tuple[float, float, float, float] = (depot.x, depot.y, depot.x, depot.y)
-        self._cost_segments: List[float] = []  # NEW: Cache segment costs for incremental eval
+        self._cost_segments: List[float] = []
     
     def update_bounding_box(self):
         """Update the bounding box (min_x, min_y, max_x, max_y) of the route - O(N)"""
@@ -96,7 +96,7 @@ class Route:
         return True
     
     def _get_distance(self, c1: Customer, c2: Customer) -> float:
-        """Get distance with caching"""
+        """Get distance with minimal caching"""
         key = (c1.id, c2.id)
         if key not in self._dist_cache:
             self._dist_cache[key] = distance(c1, c2)
@@ -227,7 +227,7 @@ class Route:
             arrival_times = [0.0] * n
             self.arrival_times = arrival_times
 
-        self._cost_segments = [0.0] * n  # Cache segment costs
+        self._cost_segments = [0.0] * n
 
         time = self.departure_time
         prev = self.depot
@@ -247,10 +247,7 @@ class Route:
 
             arrival_times[i] = arrival
             
-            # CRITICAL FIX: Removed waiting time penalty (was 1.3x)
-            # Waiting is FREE - only distance matters (like OR-Tools)
-            # This allows route consolidation without penalty
-            segment_cost = travel  # No waiting penalty!
+            segment_cost = travel
             self._cost_segments[i] = segment_cost
             total_cost += segment_cost
 
@@ -266,7 +263,6 @@ class Route:
     def get_move_delta_cost(self, start_i: int, end_i: int, insert_j: int) -> Tuple[float, bool]:
         """
         OPTIMIZED: O(N) worst case with smart filtering and early termination
-        Calculates cost change for Or-Opt segment move with pre-filtering
         """
         customer_ids = self.customer_ids
         n = len(customer_ids)
@@ -276,9 +272,8 @@ class Route:
             return 0.0, False
         
         if insert_j >= start_i and insert_j <= end_i:
-            return 0.0, True  # No-op move
+            return 0.0, True
 
-        # OPTIMIZATION 1: Quick distance-based filtering
         seg_start = self.get_customer(start_i)
         seg_end = self.get_customer(end_i - 1)
         
@@ -287,19 +282,15 @@ class Route:
         else:
             insert_neighbor = self.depot if insert_j == n else self.get_customer(insert_j - seg_len - 1)
         
-        # Estimate distance change (heuristic filter)
         avg_seg_x = (seg_start.x + seg_end.x) / 2
         avg_seg_y = (seg_start.y + seg_end.y) / 2
         dist_to_insert = math.sqrt((avg_seg_x - insert_neighbor.x)**2 + (avg_seg_y - insert_neighbor.y)**2)
         
-        # If moving segment far away (>3x average route span), skip
-        # RELAXED: 2.5 -> 3.0 to find more moves (leveraging speed budget)
         if n > 0 and self.bbox[2] - self.bbox[0] > 0:
             avg_route_span = ((self.bbox[2] - self.bbox[0]) + (self.bbox[3] - self.bbox[1])) / 2
-            if dist_to_insert > 3.0 * avg_route_span:
+            if dist_to_insert > 3.5 * avg_route_span:
                 return 0.0, False
 
-        # Create virtual sequence for evaluation
         temp_ids = customer_ids[:start_i] + customer_ids[end_i:]
         if insert_j < start_i:
             actual_insert = insert_j
@@ -310,11 +301,9 @@ class Route:
         
         temp_ids[actual_insert:actual_insert] = customer_ids[start_i:end_i]
         
-        # OPTIMIZATION 2: Incremental feasibility check with early termination
         affected_start = max(0, min(start_i, actual_insert) - 1)
         affected_end = min(len(temp_ids), max(end_i, actual_insert + seg_len) + 1)
         
-        # Quick time window feasibility check on affected region
         time = self.departure_time
         prev = self.depot
         
@@ -326,19 +315,17 @@ class Route:
                 time = arrival + cust.service_time
                 prev = cust
         
-        # Check affected region
         for i in range(affected_start, min(affected_end, len(temp_ids))):
             cust = self.customers_lookup[temp_ids[i]]
             travel = self._get_distance(prev, cust)
             arrival = max(time + travel, cust.ready_time)
             
             if arrival > cust.due_date:
-                return 0.0, False  # Early termination
+                return 0.0, False
             
             time = arrival + cust.service_time
             prev = cust
         
-        # If still feasible, do full cost calculation
         temp_route = Route(self.depot, self.vehicle_capacity, self.customers_lookup)
         temp_route.customer_ids = temp_ids
         temp_route.departure_time = self.departure_time
@@ -355,27 +342,23 @@ class Route:
     def get_move_delta_cost_for_external_customer(self, customer_id: int, position: int) -> tuple[float, bool]:
         """
         OPTIMIZED: Simulates inserting EXTERNAL customer with smart filtering
-        Returns (delta_cost, is_feasible)
         """
         customer = self.customers_lookup[customer_id]
         
         if self.current_load + customer.demand > self.vehicle_capacity:
             return 0.0, False
 
-        # OPTIMIZATION: Distance-based pre-filtering (RELAXED)
         if position > 0:
             prev_cust = self.get_customer(position - 1)
             dist_to_prev = distance(prev_cust, customer)
             if self.bbox[2] - self.bbox[0] > 0:
                 avg_span = ((self.bbox[2] - self.bbox[0]) + (self.bbox[3] - self.bbox[1])) / 2
-                # RELAXED: 2.0 -> 2.5 to explore more insertion options
-                if dist_to_prev > 2.5 * avg_span:
+                if dist_to_prev > 3.0 * avg_span:
                     return 0.0, False
 
         new_ids = list(self.customer_ids)
         new_ids.insert(position, customer_id)
         
-        # Incremental feasibility check (only check near insertion point)
         check_start = max(0, position - 2)
         check_end = min(len(new_ids), position + 3)
         
@@ -400,7 +383,6 @@ class Route:
             time = arrival + cust.service_time
             prev = cust
         
-        # Full evaluation only if incremental check passed
         temp_route = Route(self.depot, self.vehicle_capacity, self.customers_lookup)
         temp_route.customer_ids = new_ids
         temp_route.departure_time = self.departure_time
@@ -415,7 +397,7 @@ class Route:
         return delta_cost, True
     
     def get_total_distance(self) -> float:
-        """Return total travel distance (excluding waiting time)"""
+        """Return total travel distance"""
         if not self.customer_ids:
             return 0.0
 
@@ -511,7 +493,7 @@ class Route:
             self.calculate_cost_inplace()
 
         distance_only = self.get_total_distance()
-        return (self.total_cost - distance_only) / 1.3  # Updated to match new penalty
+        return self.total_cost - distance_only
     
     def get_waiting_contributions(self) -> List[tuple[int, float]]:
         """Return per-customer waiting contributions"""
@@ -616,10 +598,8 @@ class Solution:
             lambda_penalty = alpha_vehicle
         else:
             avg_route_cost = self.total_base_cost / max(self.num_vehicles, 1)
-            avg_waiting = self.total_base_cost - base_distance
-            avg_waiting = avg_waiting / max(self.num_vehicles, 1)
-            lambda_penalty = 1.5 * avg_route_cost + 0.5 * avg_waiting + 3000.0
-            lambda_penalty = max(3000.0, min(lambda_penalty, 5000.0))
+            lambda_penalty = 2.0 * avg_route_cost + 5000.0
+            lambda_penalty = max(5000.0, min(lambda_penalty, 8000.0))
 
         self.total_cost = self.total_base_cost + lambda_penalty * self.num_vehicles
         
