@@ -1,13 +1,13 @@
 """
-Fast Multi-Directional Search (MDS) - Speed + Quality Balance
-Target: 6-7s runtime with competitive quality
+Fast Multi-Directional Search (MDS) - Enhanced Fleet Reduction for R-series
+Target: 6-7s runtime with optimal vehicle count
 """
 
 import copy
 import math
 import random
 from typing import List, Set
-from core.data_structures import Solution, Route
+from core.data_structures import Solution, Route, distance
 from evaluation.route_analyzer import identify_critical_route_indices
 from operators.inter_route_relocate import inter_route_relocate_inplace
 from operators.intra_route_2opt import intra_route_2opt_inplace
@@ -22,14 +22,199 @@ from operators.cross_exchange import cross_exchange
 from operators.ejection_chain import ejection_chain_reduction
 
 
+def aggressive_route_merging(solution: Solution, max_attempts: int = 100) -> bool:
+    """
+    Enhanced route merging with spatial clustering for R-series instances
+    Returns True if any routes were merged
+    """
+    if len(solution.routes) < 2:
+        return False
+    
+    merged_any = False
+    attempts = 0
+    
+    while attempts < max_attempts:
+        attempts += 1
+        
+        if len(solution.routes) < 2:
+            break
+        
+        best_merge_pair = None
+        best_merge_cost = float('inf')
+        
+        for i in range(len(solution.routes)):
+            route_i = solution.routes[i]
+            
+            if len(route_i.customer_ids) == 0:
+                continue
+            
+            centroid_i = route_i.get_centroid()
+            
+            for j in range(i + 1, len(solution.routes)):
+                route_j = solution.routes[j]
+                
+                if len(route_j.customer_ids) == 0:
+                    continue
+                
+                if route_i.current_load + route_j.current_load > route_i.vehicle_capacity:
+                    continue
+                
+                centroid_j = route_j.get_centroid()
+                centroid_dist = math.sqrt((centroid_i[0] - centroid_j[0])**2 + 
+                                        (centroid_i[1] - centroid_j[1])**2)
+                
+                temp_route = Route(route_i.depot, route_i.vehicle_capacity, route_i.customers_lookup)
+                temp_route.customer_ids = list(route_i.customer_ids) + list(route_j.customer_ids)
+                temp_route.departure_time = min(route_i.departure_time, route_j.departure_time)
+                temp_route.current_load = route_i.current_load + route_j.current_load
+                temp_route._recalculate_from(0)
+                
+                if not temp_route.is_feasible():
+                    continue
+                
+                merge_cost = temp_route.calculate_cost_inplace()
+                
+                if merge_cost < best_merge_cost:
+                    best_merge_cost = merge_cost
+                    best_merge_pair = (i, j, temp_route)
+        
+        if best_merge_pair is not None:
+            i, j, merged_route = best_merge_pair
+            
+            solution.routes[i] = merged_route
+            solution.routes.pop(j)
+            solution.update_cost()
+            merged_any = True
+        else:
+            break
+    
+    return merged_any
+
+
+def enhanced_ejection_chain(solution: Solution, target_route_idx: int, max_depth: int = 4) -> bool:
+    """
+    Enhanced ejection chain with adaptive depth for difficult routes
+    Returns True if route was successfully emptied
+    """
+    if target_route_idx >= len(solution.routes):
+        return False
+    
+    target_route = solution.routes[target_route_idx]
+    
+    if len(target_route.customer_ids) == 0:
+        solution.routes.pop(target_route_idx)
+        solution.update_cost()
+        return True
+    
+    customers_to_relocate = list(target_route.customer_ids)
+    
+    if len(customers_to_relocate) > 8:
+        max_depth = min(max_depth, 3)
+    
+    for depth in range(1, max_depth + 1):
+        relocated_all = True
+        
+        for cust_id in customers_to_relocate:
+            best_route_idx = None
+            best_position = None
+            best_delta = float('inf')
+            
+            for r_idx, route in enumerate(solution.routes):
+                if r_idx == target_route_idx:
+                    continue
+                
+                for pos in range(len(route.customer_ids) + 1):
+                    delta, feasible = route.get_move_delta_cost_for_external_customer(cust_id, pos)
+                    
+                    if feasible and delta < best_delta:
+                        best_delta = delta
+                        best_route_idx = r_idx
+                        best_position = pos
+            
+            if best_route_idx is None and depth < max_depth:
+                relocated_all = False
+                break
+            elif best_route_idx is None:
+                return False
+            else:
+                if solution.routes[best_route_idx].insert_inplace(cust_id, best_position):
+                    target_route.customer_ids.remove(cust_id)
+                    target_route.current_load -= target_route.customers_lookup[cust_id].demand
+                    target_route._recalculate_from(0)
+                    target_route.calculate_cost_inplace()
+                else:
+                    relocated_all = False
+                    break
+        
+        if relocated_all and len(target_route.customer_ids) == 0:
+            solution.routes.pop(target_route_idx)
+            solution.update_cost()
+            return True
+    
+    return False
+
+
+def smart_route_selection_for_elimination(solution: Solution) -> List[int]:
+    """
+    Intelligently select routes for elimination based on multiple criteria
+    Returns list of route indices sorted by elimination priority
+    """
+    if len(solution.routes) <= 1:
+        return []
+    
+    route_scores = []
+    
+    for idx, route in enumerate(solution.routes):
+        if len(route.customer_ids) == 0:
+            route_scores.append((idx, -1000.0))
+            continue
+        
+        size_score = len(route.customer_ids)
+        
+        load_ratio = route.current_load / route.vehicle_capacity
+        utilization_score = 1.0 - load_ratio
+        
+        avg_slack = route.get_average_slack()
+        slack_score = avg_slack / 100.0
+        
+        centroid = route.get_centroid()
+        min_dist_to_other = float('inf')
+        
+        for other_idx, other_route in enumerate(solution.routes):
+            if other_idx == idx or len(other_route.customer_ids) == 0:
+                continue
+            
+            other_centroid = other_route.get_centroid()
+            dist = math.sqrt((centroid[0] - other_centroid[0])**2 + 
+                           (centroid[1] - other_centroid[1])**2)
+            
+            if dist < min_dist_to_other:
+                min_dist_to_other = dist
+        
+        proximity_score = 1.0 / (min_dist_to_other + 1.0)
+        
+        total_score = (
+            size_score * 3.0 +
+            utilization_score * 2.0 +
+            slack_score * 1.5 +
+            proximity_score * 2.5
+        )
+        
+        route_scores.append((idx, total_score))
+    
+    route_scores.sort(key=lambda x: x[1])
+    
+    return [idx for idx, _ in route_scores]
+
+
 def selective_mds(solution: Solution,
                   max_iterations: int = 50,
                   top_n_critical: int = 5,
                   early_termination: int = 40) -> Solution:
     """
-    Fast MDS with aggressive fleet reduction
-    Phase 1: Fleet Reduction (quick ejection chains)
-    Phase 2: Cost Optimization (fast local search)
+    Fast MDS with enhanced fleet reduction for R-series
+    Phase 1: Aggressive Fleet Reduction
+    Phase 2: Cost Optimization
     """
     
     total_customers = solution.get_total_customers()
@@ -60,20 +245,21 @@ def selective_mds(solution: Solution,
                     solution.restore_missing_customers(to_restore, depot, vehicle_capacity)
                     solution.validate_coverage(total_customers)
     
-    # Adaptive parameters based on problem size
     if total_customers > 100:
         top_n_critical = 2
         max_iterations = min(max_iterations, 30)
         early_termination = 20
-        fleet_passes = 30
+        fleet_passes = 35
+        ejection_max_depth = 3
     elif total_customers < 30:
         max_iterations = min(max_iterations, 20)
         early_termination = 15
-        fleet_passes = 20
+        fleet_passes = 25
+        ejection_max_depth = 5
     else:
-        fleet_passes = 40
+        fleet_passes = 80  # INCREASED from 45 for better reduction
+        ejection_max_depth = 4
     
-    # Precompute neighbor lists (faster than full distance calculations)
     from operators.candidate_pruning import build_candidate_list_for_customer
     
     all_customers_flat = []
@@ -89,10 +275,11 @@ def selective_mds(solution: Solution,
     max_r_size = max((len(r.customer_ids) for r in solution.routes), default=0)
     temp_arrival_buffer = [0.0] * (max_r_size + 20)
     
-    # ===== PHASE 1: Fast Fleet Reduction =====
-    print("Phase 1: Fleet Reduction")
+    print("Phase 1: Aggressive Fleet Reduction")
     fleet_stable = False
     pass_count = 0
+    
+    initial_vehicle_count = len(solution.routes)
     
     while not fleet_stable and pass_count < fleet_passes:
         pass_count += 1
@@ -100,7 +287,6 @@ def selective_mds(solution: Solution,
         
         current_vehicles = len(solution.routes)
         
-        # Strategy 1: Inter-route relocate
         if inter_route_relocate_inplace(solution, temp_arrival_buffer, neighbors=global_neighbors):
             solution.update_cost()
             if len(solution.routes) < current_vehicles:
@@ -110,41 +296,48 @@ def selective_mds(solution: Solution,
         
         restore_missing()
         
-        # Strategy 2: Route emptying
         if route_empty_inplace(solution):
             solution.update_cost()
             fleet_stable = False
         
-        # Strategy 3: Ejection chains (depth-2 only for speed)
-        sorted_routes = sorted(range(len(solution.routes)), 
-                             key=lambda i: len(solution.routes[i].customer_ids))
+        if aggressive_route_merging(solution, max_attempts=30):
+            solution.update_cost()
+            fleet_stable = False
         
-        for r_idx in sorted_routes[:3]:  # Only try 3 smallest routes
+        priority_routes = smart_route_selection_for_elimination(solution)
+        
+        # FIX: Try ALL routes (not just top 5) and increase customer threshold
+        for r_idx in priority_routes:  # Try ALL routes
             if r_idx >= len(solution.routes):
                 break
+            
             route = solution.routes[r_idx]
-            if 0 < len(route.customer_ids) < 6:
-                if ejection_chain_reduction(solution, r_idx, max_depth=2):
+            
+            # FIX: Increased from 8 to 20 to handle larger routes
+            if 0 < len(route.customer_ids) <= 20:
+                if enhanced_ejection_chain(solution, r_idx, max_depth=ejection_max_depth):
                     solution.update_cost()
                     fleet_stable = False
                     break
         
         restore_missing()
         
-        # Quick convergence check
-        if pass_count % 10 == 0:
+        # FIX: Removed early termination - let it run full passes
+        # Early termination was stopping at 60% of passes
+        if pass_count % 15 == 0:
             if len(solution.routes) == current_vehicles:
-                break
+                # Only break if NO improvement AND we've done enough passes
+                if pass_count > fleet_passes * 0.8:
+                    break
     
-    print(f"  Fleet reduction complete: {len(solution.routes)} vehicles after {pass_count} passes")
+    vehicles_reduced = initial_vehicle_count - len(solution.routes)
+    print(f"  Fleet reduction: {initial_vehicle_count} → {len(solution.routes)} (-{vehicles_reduced} vehicles) in {pass_count} passes")
     
-    # ===== PHASE 2: Fast Cost Optimization =====
     print("Phase 2: Cost Optimization")
     
     best_solution_cost = solution.total_cost
     best_solution = copy.deepcopy(solution)
     
-    # Fast SA parameters
     current_temp = 60.0
     cooling_rate = 0.93
     min_temp = 0.5
@@ -154,7 +347,6 @@ def selective_mds(solution: Solution,
     no_improvement = 0
     no_best_improvement = 0
     
-    # Faster iteration limits
     effective_max_iter = min(max_iterations, 35) if total_customers > 80 else max_iterations
     
     while iteration < effective_max_iter and no_improvement < 60 and no_best_improvement < 40:
@@ -162,13 +354,11 @@ def selective_mds(solution: Solution,
         
         current_state_backup = copy.deepcopy(solution)
         
-        # Fast LNS (smaller removal for speed)
         lns_prob = 0.40 if current_temp > 40 else 0.20
         if random.random() < lns_prob:
-            removal_frac = 0.20 + (0.15 * random.random())  # 20-35% removal
+            removal_frac = 0.20 + (0.15 * random.random())
             lns_destroy_repair(solution, removal_fraction=removal_frac, random_seed=iteration)
         
-        # Inter-route operators (every 2nd iteration for speed)
         if iteration % 2 == 0 and len(solution.routes) > 1:
             rand_val = random.random()
             
@@ -179,7 +369,6 @@ def selective_mds(solution: Solution,
             else:
                 cross_exchange(solution, max_attempts=25)
         
-        # Intra-route refinement (focused on critical routes)
         critical_indices = identify_critical_route_indices(
             solution, top_n=min(top_n_critical, len(solution.routes))
         )
@@ -192,7 +381,7 @@ def selective_mds(solution: Solution,
             route_improved = True
             local_iter = 0
             
-            while route_improved and local_iter < 4:  # Max 4 local iterations
+            while route_improved and local_iter < 4:
                 route_improved = False
                 local_iter += 1
                 
@@ -208,7 +397,6 @@ def selective_mds(solution: Solution,
         
         solution.update_cost()
         
-        # Fast SA acceptance
         new_cost = solution.total_cost
         curr_cost = current_state_backup.total_cost
         delta = new_cost - curr_cost
@@ -218,7 +406,6 @@ def selective_mds(solution: Solution,
         
         accepted = False
         
-        # Priority: Always accept fleet reduction
         if new_vehicles < old_vehicles:
             accepted = True
             no_improvement = 0
@@ -249,19 +436,18 @@ def selective_mds(solution: Solution,
             solution = current_state_backup
             no_improvement += 1
         
-        # Fast cooling
         current_temp = max(min_temp, current_temp * cooling_rate)
         
-        # Reheat if stuck
         if no_best_improvement >= 6 and current_temp < reheat_temp:
             current_temp = reheat_temp
             no_best_improvement = 0
         
         restore_missing()
         
-        # Progress reporting (less frequent)
         if iteration % 15 == 0:
             print(f"  Iter {iteration}: Cost={solution.total_base_cost:.2f}, Vehicles={len(solution.routes)}, Temp={current_temp:.2f}")
     
     print(f"Optimization complete: {iteration} iterations")
+    print(f"Final solution: {len(best_solution.routes)} vehicles, cost={best_solution.total_base_cost:.2f}")
+    
     return best_solution

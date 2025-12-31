@@ -549,6 +549,22 @@ class Route:
             total_slack += slack
         
         return total_slack / len(self.customer_ids)
+    
+    def get_centroid(self) -> Tuple[float, float]:
+        """Calculate route centroid (average x, y position)"""
+        if not self.customer_ids:
+            return (self.depot.x, self.depot.y)
+        
+        sum_x = 0.0
+        sum_y = 0.0
+        customers_lookup = self.customers_lookup
+        for cid in self.customer_ids:
+            c = customers_lookup[cid]
+            sum_x += c.x
+            sum_y += c.y
+        
+        n = len(self.customer_ids)
+        return (sum_x / n, sum_y / n)
 
 
 class Solution:
