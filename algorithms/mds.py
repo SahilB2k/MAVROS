@@ -138,10 +138,12 @@ def enhanced_ejection_chain(solution: Solution, target_route_idx: int, max_depth
                 return False
             else:
                 if solution.routes[best_route_idx].insert_inplace(cust_id, best_position):
-                    target_route.customer_ids.remove(cust_id)
-                    target_route.current_load -= target_route.customers_lookup[cust_id].demand
-                    target_route._recalculate_from(0)
-                    target_route.calculate_cost_inplace()
+                    # Safety check: only remove if customer is still in target route
+                    if cust_id in target_route.customer_ids:
+                        target_route.customer_ids.remove(cust_id)
+                        target_route.current_load -= target_route.customers_lookup[cust_id].demand
+                        target_route._recalculate_from(0)
+                        target_route.calculate_cost_inplace()
                 else:
                     relocated_all = False
                     break
